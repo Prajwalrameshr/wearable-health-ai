@@ -4,8 +4,8 @@ from typing import Any, Dict
 from sqlalchemy.orm import Session
 import pandas as pd
 
-# Add ML project root directory to sys.path
-ML_PROJECT_DIR = Path(r"c:\Users\PRAJWAL\Downloads\wearable-health-ai-20260820T054456Z-1-001\wearable-health-ai")
+# Dynamically resolve ML project root directory (one level up from backend/)
+ML_PROJECT_DIR = Path(__file__).resolve().parent.parent
 if str(ML_PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(ML_PROJECT_DIR))
 
