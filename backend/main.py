@@ -1,0 +1,186 @@
+﻿from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from database import Base, engine, get_db
+from models import HealthLog
+from ml_engine import predict_health_risk
+
+# Automatically create database tables if they do not exist
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(
+    title="Wearable Health AI Backend",
+    description="FastAPI Backend orchestrating Android Health Connect, PostgreSQL Database, and GMM/HMM ML Models.",
+    version="2.0.0",
+)
+
+# Enable CORS for cross-origin / mobile app access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# Pydantic Schemas
+class HealthPayload(BaseModel):
+    deviceUserId: str = Field(..., example="android_device_9a8b7c")
+    steps: int = Field(0, example=4714)
+    heartRate: Optional[float] = Field(None, example=69.8)
+    oxygenSaturation: Optional[float] = Field(None, example=96.7)
+    sleepMinutes: int = Field(0, example=375)
+    recordStartTime: Optional[str] = Field(None, example="2025-11-10T00:00:00Z")
+    recordEndTime: Optional[str] = Field(None, example="2025-11-10T23:59:59Z")
+    collectedAt: Optional[str] = Field(None, example="2025-11-10T23:55:00Z")
+    city: Optional[str] = Field("Bangalore", example="Bangalore")
+    modelType: Optional[str] = Field("gmm", example="gmm")
+
+
+class HealthResponse(BaseModel):
+    status: str
+    message: Optional[str] = None
+    days_available: int
+    window_used: str
+    userId: Optional[str] = None
+    date: Optional[str] = None
+    modelType: Optional[str] = None
+    state: Optional[str] = None
+    previousState: Optional[str] = None
+    confidence: Optional[float] = None
+    trend: Optional[str] = None
+    riskScore: Optional[float] = None
+    riskLevel: Optional[str] = None
+    severityScore: Optional[float] = None
+    clinicalAdvisoryLevel: Optional[str] = None
+    clinicalSummaryMessage: Optional[str] = None
+    persistentTriggers: Optional[List[str]] = None
+    recommendations: Optional[List[str]] = None
+    cohortBenchmarks: Optional[Dict[str, Any]] = None
+    multiRisk: Optional[Dict[str, Any]] = None
+    environment: Optional[Dict[str, Any]] = None
+
+
+@app.get("/")
+def index():
+    return {
+        "service": "Wearable Health AI FastAPI Backend",
+        "version": "2.0.0",
+        "status": "running",
+        "docs_url": "/docs",
+        "endpoints": {
+            "health_check": "GET /health",
+            "send_health_records": "POST /api/health/records"
+        }
+    }
+
+
+@app.get("/health")
+@app.get("/api/health/status")
+def health_check(db: Session = Depends(get_db)):
+    try:
+        # Check DB connectivity
+        db_log_count = db.query(HealthLog).count()
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "total_health_logs": db_log_count,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database connection issue: {str(exc)}"
+        )
+
+
+@app.post("/api/health/records", response_model=HealthResponse)
+def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)):
+    try:
+        # Determine record_date (YYYY-MM-DD)
+        if payload.recordStartTime and "T" in payload.recordStartTime:
+            record_date = payload.recordStartTime.split("T")[0]
+        else:
+            record_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+        # 1. Perform Daily Upsert (1 record per user per date)
+        existing_log = (
+            db.query(HealthLog)
+            .filter(
+                HealthLog.device_user_id == payload.deviceUserId,
+                HealthLog.record_date == record_date
+            )
+            .first()
+        )
+
+        if existing_log:
+            # Update today's existing row
+            existing_log.steps = payload.steps
+            existing_log.heart_rate = payload.heartRate
+            existing_log.oxygen_saturation = payload.oxygenSaturation
+            existing_log.sleep_minutes = payload.sleepMinutes
+            existing_log.record_start_time = payload.recordStartTime
+            existing_log.record_end_time = payload.recordEndTime
+            existing_log.collected_at = payload.collectedAt
+            log_entry = existing_log
+        else:
+            # Insert new daily row
+            log_entry = HealthLog(
+                device_user_id=payload.deviceUserId,
+                record_date=record_date,
+                steps=payload.steps,
+                heart_rate=payload.heartRate,
+                oxygen_saturation=payload.oxygenSaturation,
+                sleep_minutes=payload.sleepMinutes,
+                record_start_time=payload.recordStartTime,
+                record_end_time=payload.recordEndTime,
+                collected_at=payload.collectedAt,
+            )
+            db.add(log_entry)
+
+        db.commit()
+        db.refresh(log_entry)
+
+        # 2. Execute ML Inference with dynamic 7D/30D baseline window
+        city_name = payload.city or "Bangalore"
+        model_name = payload.modelType or "gmm"
+        prediction = predict_health_risk(
+            device_user_id=payload.deviceUserId,
+            db=db,
+            city=city_name,
+            model_type=model_name,
+        )
+
+        # 3. Save ML predictions back to DB log entry
+        log_entry.predicted_state = str(prediction.get("state"))
+        log_entry.risk_score = float(prediction.get("riskScore", 0.0))
+        log_entry.risk_level = str(prediction.get("riskLevel"))
+        log_entry.clinical_advisory_level = str(prediction.get("clinicalAdvisoryLevel"))
+        log_entry.clinical_summary_message = str(prediction.get("clinicalSummaryMessage"))
+        log_entry.window_used = str(prediction.get("window_used"))
+
+        db.commit()
+
+        # 4. Construct response payload
+        prediction["userId"] = payload.deviceUserId
+        prediction["date"] = record_date
+        prediction["modelType"] = model_name
+
+        return prediction
+
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to process health payload: {str(exc)}"
+        )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=5000, reload=True)

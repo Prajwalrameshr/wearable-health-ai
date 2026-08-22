@@ -1,0 +1,2129 @@
+WEARABLE HEALTH AI - COMPLETE BEGINNER-FRIENDLY PROJECT EXPLANATION
+====================================================================
+
+Project name:
+Wearable Health AI / Wearable Health Intelligence
+
+Main idea:
+This project analyzes wearable-device health data and converts raw daily readings into useful health intelligence. It takes signals such as heart rate, HRV, SpO2, steps, sleep, blood pressure, caffeine, screen time, workout type, mood, and environment data, then predicts the user's current physiological state, risk level, trend, and personalized recommendations.
+
+In simple words:
+The project tries to answer:
+
+1. Is the user currently in a good recovery state, normal baseline state, or strain/stress state?
+2. Is the user's body improving, stable, or deteriorating over time?
+3. Which health risks are increasing?
+4. What should the user do today?
+5. How do weather and air quality affect the risk?
+6. Which model performs better for this data?
+
+
+1. WHY THIS PROJECT EXISTS
+==========================
+
+Wearable devices collect a lot of health data, but raw values are not always easy for a normal person to understand.
+
+Example:
+- Resting heart rate = 72 bpm
+- HRV = 39 ms
+- Sleep = 5.8 hours
+- Steps = 3200
+
+A beginner user may not know whether these values are good or bad. Also, the meaning depends on the person's own normal baseline. For one person, HRV of 45 may be normal. For another person, HRV of 45 may indicate poor recovery.
+
+The ideology of this project is:
+
+Use personal baseline comparison instead of judging everyone by one fixed rule.
+
+This is important because wearable health is personalized. The same value can mean different things for different people. So the project creates rolling baselines for every user, measures deviations from those baselines, identifies health states using unsupervised machine learning, tracks temporal transitions using an HMM, and finally generates risk-aware recommendations.
+
+
+2. HIGH-LEVEL PROJECT WORKFLOW
+==============================
+
+The complete workflow is:
+
+Step 1: User uploads a CSV file or uses sample data.
+Step 2: The app validates required columns.
+Step 3: Data is cleaned and missing values are handled.
+Step 4: Outliers are capped so extreme noisy readings do not dominate the model.
+Step 5: Rolling personal baselines are created.
+Step 6: Deviations from baseline are calculated.
+Step 7: Temporal trend features are created using 7-day slopes.
+Step 8: Severity and anomaly scores are calculated.
+Step 9: Features are scaled for machine learning.
+Step 10: KMeans or GMM groups daily records into health states.
+Step 11: HMM studies how those states change over time.
+Step 12: Risk scoring converts model output into readable risk levels.
+Step 13: Environment data adjusts the risk score.
+Step 14: Recommendation engine generates actions.
+Step 15: Streamlit dashboard displays the final results.
+Step 16: Processed results can be downloaded as CSV.
+
+
+3. PROJECT FOLDER STRUCTURE
+===========================
+
+The main project is inside:
+
+wearable-health-ai/
+
+Important folders and files:
+
+app/
+Contains the Streamlit dashboard code.
+
+app/main.py
+The main working dashboard. It provides navigation between Dashboard, Analysis, and Recommendations views.
+
+app/dashboard_utils.py
+Contains helper functions for UI cards, charts, gauges, heatmaps, feature plots, explainability plots, and styling.
+
+app/pages/
+Contains older/extra page files for upload, analysis, and recommendations. The main app currently combines these workflows in app/main.py.
+
+data/
+Contains input CSV files.
+
+data/wearables_health_6mo_daily.csv
+Main sample dataset with daily wearable health data.
+
+data/sample_user.csv
+Small legacy/demo dataset with timestamp, heart_rate, steps, sleep_hours, spo2, and stress_level.
+
+models/
+Contains saved model files:
+- kmeans.pkl
+- gmm.pkl
+- hmm.pkl
+
+src/
+Contains reusable machine-learning and business-logic code.
+
+src/preprocessing.py
+Data cleaning, schema handling, baseline creation, deviation features, temporal features, severity score, encoding, and scaling.
+
+src/kmeans.py
+KMeans clustering pipeline.
+
+src/gmm.py
+Gaussian Mixture Model clustering pipeline.
+
+src/hmm_model.py
+Hidden Markov Model training, decoding, transition matrix, duration, and state distribution logic.
+
+src/risk_scoring.py
+Risk score calculation and health-risk intelligence.
+
+src/recommendation_engine.py
+Personalized recommendation generation.
+
+src/environment.py
+Weather and air-quality integration using OpenWeather API if an API key is available.
+
+src/model_comparison.py
+Compares KMeans, GMM, and HMM metrics.
+
+run_models.py
+Runs the full model comparison pipeline from the command line.
+
+run_inference.py
+Runs the final inference pipeline for a CSV and outputs final results.
+
+outputs/
+Contains processed result CSVs and metrics outputs.
+
+requirements.txt
+Lists Python libraries needed to run the project.
+
+
+4. TECHNOLOGY USED
+==================
+
+Python
+Main programming language.
+
+Pandas
+Used for CSV loading, cleaning, grouping, rolling averages, feature creation, and output generation.
+
+NumPy
+Used for numerical calculations.
+
+Scikit-learn
+Used for:
+- StandardScaler
+- KMeans
+- GaussianMixture
+- Clustering metrics
+- RandomForestClassifier for explainability fallback
+- Permutation importance
+
+hmmlearn
+Used for GaussianHMM, which models time-based hidden health states.
+
+Streamlit
+Used for the interactive web dashboard.
+
+Plotly
+Used for charts, gauges, heatmaps, histograms, and visual analytics.
+
+Matplotlib / Seaborn
+Available for plotting and model evaluation visuals.
+
+SHAP
+Used when available for explainability of feature influence.
+
+Joblib
+Used to save and load machine-learning models as .pkl files.
+
+OpenWeather API
+Optional. Used to fetch weather and air-pollution context if OPENWEATHER_API_KEY is set.
+
+
+5. INPUT DATA EXPLAINED
+=======================
+
+The project supports two schemas:
+
+A. Full daily wearable schema
+-----------------------------
+
+The main dataset includes columns such as:
+
+- user_id
+- date
+- age
+- gender
+- region
+- device_model
+- height_cm
+- weight_kg
+- bmi
+- resting_hr_bpm
+- avg_hr_day_bpm
+- hrv_rmssd_ms
+- spo2_avg_pct
+- sbp_mmHg
+- dbp_mmHg
+- steps
+- distance_km
+- calories_kcal
+- workout_type
+- workout_minutes
+- caffeine_mg
+- alcohol_units
+- screen_time_min
+- sleep_duration_hours
+- sleep_efficiency
+- sleep_latency_min
+- wake_after_sleep_onset_min
+- sleep_stage_rem_pct
+- sleep_stage_deep_pct
+- sleep_stage_light_pct
+- stress_score
+- mindfulness_minutes
+- mood
+
+B. Minimal daily schema
+-----------------------
+
+The app can also work if the uploaded CSV has at least:
+
+- user_id
+- date
+- resting_hr_bpm
+- hrv_rmssd_ms
+- spo2_avg_pct
+- steps
+- sleep_duration_hours
+
+If optional columns are missing, the project fills them using default values.
+
+C. Legacy small demo schema
+---------------------------
+
+The older demo format uses:
+
+- timestamp
+- heart_rate
+- steps
+- sleep_hours
+- spo2
+- stress_level
+
+This is supported by older helper functions, but the main advanced pipeline is built around daily wearable records.
+
+
+6. DATA PREPROCESSING IN DETAIL
+===============================
+
+Preprocessing happens mostly inside src/preprocessing.py.
+
+6.1 Dataset resolution
+----------------------
+
+The function resolve_dataset_path() searches for known dataset filenames inside data/.
+
+Known aliases:
+- dwindables.csv
+- wearables_hea;th_6mo_daily.csv
+- wearables_health_6mo_daily.csv
+
+Note:
+The code contains a misspelled alias, but the correct dataset file exists as wearables_health_6mo_daily.csv.
+
+6.2 Schema validation
+---------------------
+
+validate_required_columns() checks whether the uploaded file has enough columns to run the pipeline.
+
+If the full schema is present, it passes.
+If the minimal schema is present, it also passes.
+If required columns are missing, Streamlit shows an error.
+
+6.3 Filling optional fields
+---------------------------
+
+ensure_daily_schema() fills missing optional columns.
+
+Examples:
+- age default = 35
+- gender default = unknown
+- region default = unknown
+- device_model default = generic
+- height_cm default = 170.0
+- weight_kg default = 70.0
+- bmi default = 24.2
+- sbp_mmHg default = 120.0
+- dbp_mmHg default = 80.0
+- sleep_efficiency default = 85.0
+- caffeine_mg default = 0.0
+- screen_time_min default = 0.0
+
+This means a beginner can upload a simpler CSV and still run the project.
+
+6.4 Date parsing and sorting
+----------------------------
+
+Dates are converted using pd.to_datetime().
+Rows with invalid dates are removed.
+Data is sorted by:
+- user_id
+- date
+
+Duplicate records for the same user and date are removed, keeping the latest row.
+
+6.5 Missing value handling
+--------------------------
+
+handle_missing() fills short gaps per user.
+
+For numeric columns:
+- forward fill
+- interpolation
+- backward fill
+
+For categorical columns:
+- fill using most common value per user
+- if no mode exists, use "unknown"
+
+This is useful because wearable devices sometimes miss data for a day.
+
+6.6 Outlier handling
+--------------------
+
+remove_outliers() uses the IQR rule per user.
+
+IQR means Interquartile Range:
+IQR = Q3 - Q1
+
+Values far below or above the normal range are capped.
+
+Why:
+Wearable devices can produce abnormal spikes due to sensor error. Capping prevents one bad reading from damaging the model.
+
+
+7. FEATURE ENGINEERING IN DETAIL
+================================
+
+Feature engineering converts raw health readings into model-ready information.
+
+7.1 Rolling personal baseline
+-----------------------------
+
+compute_baseline() calculates rolling 7-day averages per user.
+
+Baselines created:
+
+- baseline_hr from resting_hr_bpm
+- baseline_hrv from hrv_rmssd_ms
+- baseline_spo2 from spo2_avg_pct
+- baseline_sleep from sleep_duration_hours
+- baseline_steps from steps
+- baseline_sbp from sbp_mmHg
+- baseline_dbp from dbp_mmHg
+
+Rolling standard deviations are also created:
+
+- std_hr
+- std_hrv
+- std_spo2
+- std_sleep
+- std_steps
+- std_sbp
+- std_dbp
+
+Why rolling baseline?
+Because health is personal and changes over time. A rolling 7-day baseline compares today against the user's recent normal behavior.
+
+7.2 Deviation features
+----------------------
+
+compute_deviation() calculates how far the current value is from baseline.
+
+Examples:
+
+hr_dev = resting_hr_bpm - baseline_hr
+hrv_dev = hrv_rmssd_ms - baseline_hrv
+sleep_dev = sleep_duration_hours - baseline_sleep
+steps_dev = steps - baseline_steps
+
+It also creates z-normalized versions:
+
+hr_dev_z
+hrv_dev_z
+spo2_dev_z
+sleep_dev_z
+steps_dev_z
+sbp_dev_z
+dbp_dev_z
+
+Why deviations?
+Models should learn changes relative to the user, not only raw values.
+
+Example:
+If a user's normal resting heart rate is 58 and today is 72, that is meaningful strain.
+If another user's normal resting heart rate is 72 and today is 72, that may be normal.
+
+7.3 Temporal slope features
+---------------------------
+
+compute_temporal_features() creates 7-day trend slopes.
+
+Features:
+
+- hr_dev_slope_7d
+- hrv_dev_slope_7d
+- sleep_dev_slope_7d
+- steps_dev_slope_7d
+- hrv_cv_7d
+
+Slope means direction over time.
+
+Example:
+If HRV is decreasing for several days, hrv_dev_slope_7d may become negative.
+If sleep is improving, sleep_dev_slope_7d may become positive.
+
+Why slopes?
+One bad day is not always serious. A worsening pattern over many days is more important.
+
+7.4 Severity score
+------------------
+
+compute_severity() calculates:
+
+severity_score = sum of absolute z-deviation values
+
+This combines multiple abnormal signals into one score.
+
+If heart rate, HRV, sleep, SpO2, steps, and blood pressure all move away from baseline, severity_score increases.
+
+7.5 Trend score
+---------------
+
+trend_score = sum of absolute slope values
+
+This tells how strongly the user's health signals are changing.
+
+7.6 Anomaly flag
+----------------
+
+anomaly_flag is set to 1 when severity_score is greater than:
+
+user mean severity + 3 * user standard deviation
+
+This marks unusually abnormal days.
+
+7.7 Encoding categorical columns
+--------------------------------
+
+encode_features() one-hot encodes:
+
+- workout_type
+- mood
+
+Example:
+workout_type_run becomes 1 when workout type is run, otherwise 0.
+
+This allows machine-learning models to use categorical information.
+
+7.8 Scaling
+-----------
+
+scale_features() uses StandardScaler.
+
+Scaling transforms values so they have comparable ranges.
+
+Why scaling?
+KMeans and GMM are distance/probability based. If one feature has huge numbers, such as steps, it can dominate smaller features like HRV deviation.
+
+
+8. MODEL FEATURES USED
+======================
+
+The main clustering features are:
+
+- hr_dev
+- hrv_dev
+- sleep_dev
+- severity_score
+
+These are used by both KMeans and GMM.
+
+Why these features?
+
+hr_dev:
+Resting heart rate above baseline can indicate strain, illness, fatigue, or stress.
+
+hrv_dev:
+HRV below baseline can indicate lower recovery or autonomic stress.
+
+sleep_dev:
+Sleep below baseline can reduce recovery and increase fatigue risk.
+
+severity_score:
+Combines abnormal deviations into one health intensity value.
+
+The project intentionally focuses on physiological state features rather than every column, because too many noisy features can confuse unsupervised models.
+
+
+9. MACHINE LEARNING MODELS USED
+===============================
+
+The project uses three main model types:
+
+1. KMeans
+2. GMM
+3. HMM
+
+KMeans and GMM identify daily health states.
+HMM studies how those states change over time.
+
+
+10. KMEANS MODEL EXPLAINED
+==========================
+
+File:
+src/kmeans.py
+
+Model:
+sklearn.cluster.KMeans
+
+Purpose:
+KMeans groups similar health days into clusters.
+
+In this project, clusters are interpreted as:
+
+- Recovery
+- Baseline
+- Strain
+
+10.1 How KMeans works
+---------------------
+
+KMeans tries to divide data into K groups.
+
+Each group has a center point called a centroid.
+Each data point is assigned to the nearest centroid.
+
+In this project:
+Each row represents one user's one-day health state.
+KMeans groups similar days together.
+
+10.2 Why KMeans is used
+-----------------------
+
+KMeans is:
+
+- Simple
+- Fast
+- Easy to explain
+- Good as a baseline clustering model
+- Useful when there are no manually labeled health states
+
+Since the dataset does not appear to have true labels like "Recovery" or "Strain" manually assigned by doctors, unsupervised learning is appropriate.
+
+10.3 KMeans implementation steps
+--------------------------------
+
+run_kmeans_pipeline() does:
+
+1. Selects clustering features.
+2. Removes invalid NaN/inf rows.
+3. Computes elbow curve for K values 2 to 4.
+4. Selects K = 3 if available.
+5. Fits KMeans.
+6. Assigns kmeans_cluster to each row.
+7. Summarizes clusters.
+8. Maps clusters to health labels.
+9. Calculates metrics.
+10. Optionally saves kmeans.pkl.
+
+10.4 Cluster label mapping
+--------------------------
+
+The project uses a rule:
+
+If HRV > 60, resting HR < 65, and sleep >= 7:
+state = Recovery
+
+If HRV < 40 and resting HR > 70:
+state = Strain
+
+Otherwise:
+state = Baseline
+
+This converts numerical clusters into human-readable health states.
+
+10.5 KMeans metrics
+-------------------
+
+KMeans output includes:
+
+- silhouette_score
+- davies_bouldin_index
+- calinski_harabasz_index
+- risk_monotonicity
+
+Silhouette score:
+Higher is better. It means clusters are separated well.
+
+Davies-Bouldin index:
+Lower is better. It means clusters are compact and distinct.
+
+Calinski-Harabasz index:
+Higher is usually better. It measures cluster separation.
+
+Risk monotonicity:
+Checks whether severity increases in the expected order:
+Recovery -> Baseline -> Strain
+
+10.6 Limitations of KMeans
+--------------------------
+
+KMeans assumes clusters are round/spherical.
+It gives hard labels only.
+It may not represent uncertainty well.
+It can struggle when health states overlap.
+
+
+11. GMM MODEL EXPLAINED
+=======================
+
+File:
+src/gmm.py
+
+Model:
+sklearn.mixture.GaussianMixture
+
+Purpose:
+GMM groups health days into probabilistic clusters.
+
+11.1 How GMM works
+------------------
+
+GMM assumes the data is generated from multiple Gaussian distributions.
+
+Instead of saying:
+"This day is definitely cluster 1"
+
+GMM can say:
+"This day is 70% Baseline, 25% Strain, 5% Recovery"
+
+This is useful for health because real physiology is not always clear-cut.
+
+11.2 Why GMM is used
+--------------------
+
+GMM is used because:
+
+- Health states overlap in real life.
+- It provides probability/confidence.
+- It can model softer boundaries than KMeans.
+- It supports AIC and BIC for model selection.
+- It is better suited when a day is between two states.
+
+11.3 GMM implementation steps
+-----------------------------
+
+run_gmm_pipeline() does:
+
+1. Selects GMM features.
+2. Removes invalid rows.
+3. Tests K values from 2 to 4.
+4. Calculates AIC and BIC.
+5. Selects K = 3 if available, otherwise chooses best BIC.
+6. Fits GaussianMixture.
+7. Predicts cluster labels.
+8. Predicts cluster probabilities.
+9. Maps clusters to Recovery, Baseline, Strain.
+10. Adds probability columns:
+   - prob_recovery
+   - prob_baseline
+   - prob_strain
+11. Adds state_confidence.
+12. Calculates metrics.
+13. Optionally saves gmm.pkl.
+
+11.4 AIC and BIC
+----------------
+
+AIC and BIC help compare GMM models with different numbers of clusters.
+
+Lower AIC/BIC usually means a better balance between model fit and model complexity.
+
+11.5 Why GMM may be ideal for this project
+------------------------------------------
+
+GMM is often better than KMeans here because health state is uncertain.
+
+Example:
+A user with slightly low sleep but normal HRV may be between Baseline and Strain.
+GMM can express this uncertainty using probabilities.
+
+11.6 Limitations of GMM
+-----------------------
+
+GMM assumes Gaussian-shaped distributions.
+It can be sensitive to initialization.
+It still needs good features.
+It does not understand time order by itself.
+
+That is why HMM is added after GMM/KMeans.
+
+
+12. HMM MODEL EXPLAINED
+=======================
+
+File:
+src/hmm_model.py
+
+Model:
+hmmlearn.hmm.GaussianHMM
+
+Purpose:
+HMM models the hidden temporal health state sequence.
+
+12.1 Why HMM is needed
+----------------------
+
+KMeans and GMM look at each day mostly as a separate point.
+
+But health is temporal.
+Today's state depends on previous days.
+
+Example:
+If a user was in Strain for 5 days, tomorrow is more likely to remain Strain unless recovery improves.
+
+HMM helps answer:
+
+- How often does the user move from Recovery to Baseline?
+- How often does Baseline become Strain?
+- How long does a state persist?
+- What is the hidden temporal state today?
+- What is the future risk direction?
+
+12.2 How HMM works in simple words
+----------------------------------
+
+HMM has:
+
+Observed states:
+The visible cluster labels from KMeans or GMM.
+
+Hidden states:
+The model's internal estimate of the real physiological condition.
+
+Transition matrix:
+A table showing probability of moving from one hidden state to another.
+
+Example:
+From Baseline:
+- 70% chance stay Baseline
+- 20% chance move Recovery
+- 10% chance move Strain
+
+12.3 HMM implementation steps
+-----------------------------
+
+run_hmm_pipeline() does:
+
+1. Validates user_id, date, and observation column.
+2. Sorts data by user and date.
+3. Converts cluster labels into observation vectors.
+4. Trains GaussianHMM with up to 3 components.
+5. Decodes hidden state sequence.
+6. Calculates posterior probabilities.
+7. Maps hidden states to Recovery, Baseline, Strain based on severity.
+8. Calculates state duration.
+9. Calculates transition matrix.
+10. Calculates transition rate.
+11. Calculates state distribution.
+12. Optionally saves an HMM model.
+
+12.4 HMM outputs
+----------------
+
+The HMM output includes:
+
+- decoded_df
+- transition_matrix
+- transition_rate
+- state_distribution
+- state_map
+- duration_column
+- probability_columns
+- named_probability_columns
+- model
+- observations
+- lengths
+- observed_labels
+- state_column
+
+12.5 Transition rate
+--------------------
+
+Transition rate means how often the user's state changes.
+
+High transition rate:
+The user's state is unstable.
+
+Low transition rate:
+The user's state is stable.
+
+12.6 State duration
+-------------------
+
+State duration tells how long the user remains in the same state.
+
+This matters because one day of strain may be less serious than strain lasting a week.
+
+
+13. WHY THREE MODELS ARE USED TOGETHER
+======================================
+
+KMeans:
+Simple baseline clustering.
+
+GMM:
+Probabilistic clustering with confidence values.
+
+HMM:
+Temporal sequence modeling.
+
+Together:
+
+KMeans/GMM answer:
+"What kind of health day is this?"
+
+HMM answers:
+"How is the user's health state moving over time?"
+
+Risk scoring answers:
+"How serious is this and what should the user do?"
+
+Dashboard answers:
+"How can this be shown clearly to a normal user?"
+
+
+14. MODEL PIPELINES
+===================
+
+14.1 Full model comparison pipeline
+-----------------------------------
+
+File:
+run_models.py
+
+This script:
+
+1. Runs preprocessing.
+2. Scales cluster features.
+3. Runs KMeans.
+4. Runs GMM.
+5. Runs HMM.
+6. Compares models.
+7. Prints metrics, summaries, transition matrix, state durations, and transition rate.
+
+Command:
+
+python run_models.py
+
+14.2 Inference pipeline
+-----------------------
+
+File:
+run_inference.py
+
+This script is used by the Streamlit app.
+
+It:
+
+1. Accepts CSV path.
+2. Accepts city.
+3. Accepts model type: gmm or kmeans.
+4. Runs preprocessing.
+5. Runs selected cluster model.
+6. Runs HMM.
+7. Fetches environment.
+8. Calculates risk.
+9. Generates recommendations.
+10. Saves final CSV.
+11. Returns a result dictionary for the dashboard.
+
+Command examples:
+
+python run_inference.py data/wearables_health_6mo_daily.csv --city Bangalore --model gmm
+
+python run_inference.py data/wearables_health_6mo_daily.csv --city Bangalore --model kmeans
+
+
+15. HEALTH STATES USED
+======================
+
+The project standardizes states as:
+
+Recovery
+--------
+The body appears well recovered.
+
+Typical signs:
+- Higher HRV
+- Lower resting heart rate
+- Good sleep
+
+Baseline
+--------
+The body appears normal or average.
+
+Typical signs:
+- No major abnormal deviation
+- Stable physiology
+
+Strain
+------
+The body appears stressed or under recovery pressure.
+
+Typical signs:
+- Low HRV
+- High resting heart rate
+- Poor sleep
+- Higher severity score
+
+
+16. RISK SCORING SYSTEM
+=======================
+
+File:
+src/risk_scoring.py
+
+The risk scoring system converts model outputs and features into a 0 to 100 score.
+
+Risk levels:
+
+Low:
+score below 40
+
+Moderate:
+score from 40 to 69.9
+
+High:
+score 70 or above
+
+16.1 Health-risk categories
+---------------------------
+
+The project calculates multiple risk categories:
+
+- Cardiovascular Strain
+- Sleep Deficit Risk
+- Chronic Stress Risk
+- Recovery Failure Risk
+- Overtraining Risk
+- Fatigue Accumulation
+- Burnout Risk
+- Circadian Disruption
+- Metabolic Stress
+- Autonomic Imbalance
+
+16.2 Inputs to risk scoring
+---------------------------
+
+Risk scoring uses:
+
+- severity_score
+- hrv_dev
+- hr_dev
+- sleep_dev
+- sleep_duration_hours
+- steps
+- screen_time_min
+- caffeine_mg
+- environment values
+- current state
+- state confidence
+- state duration
+- early warning trend
+
+16.3 State adjustment
+---------------------
+
+The risk score is adjusted based on current state:
+
+Recovery:
+Risk decreases.
+
+Baseline:
+Risk remains neutral.
+
+Strain:
+Risk increases.
+
+16.4 Duration adjustment
+------------------------
+
+If the user remains in the same state for many days, risk can increase.
+
+Why:
+Persistent strain is more concerning than a one-day fluctuation.
+
+16.5 Confidence adjustment
+--------------------------
+
+If the model is very confident about the state, the score can be adjusted upward.
+
+16.6 Early warning adjustment
+-----------------------------
+
+If HRV and sleep slopes are both deteriorating, risk increases.
+
+
+17. EARLY WARNING SYSTEM
+========================
+
+The early warning logic checks:
+
+- hrv_dev_slope_7d
+- sleep_dev_slope_7d
+
+If both are negative enough, the project says the user is deteriorating.
+
+Meaning:
+HRV and sleep are moving in a bad direction together.
+
+This is important because early warnings can detect problems before risk becomes extreme.
+
+
+18. ENVIRONMENT-AWARE HEALTH INTELLIGENCE
+=========================================
+
+File:
+src/environment.py
+
+The project can use city-based environment data.
+
+It checks:
+
+- temperature
+- feels_like
+- humidity
+- weather
+- wind_speed
+- AQI
+- PM2.5
+- PM10
+
+If OPENWEATHER_API_KEY is not set, it uses default values:
+
+- temperature = 28 C
+- humidity = 60%
+- weather = Unknown
+- AQI = 1
+- PM2.5 = 0
+- PM10 = 0
+
+18.1 Environment impact rules
+-----------------------------
+
+If AQI is poor:
+Risk increases and outdoor activity is discouraged.
+
+If PM2.5 is high:
+Respiratory risk increases.
+
+If temperature is above 35 C:
+Fatigue risk increases and hydration advice is given.
+
+If humidity is high:
+Sleep and recovery quality may be affected.
+
+If weather is rain or thunderstorm:
+Indoor activity is recommended.
+
+18.2 Why environment matters
+----------------------------
+
+Wearable health does not exist in isolation.
+Heat, pollution, humidity, and poor air quality can increase strain even if the user's internal signals look acceptable.
+
+
+19. RECOMMENDATION ENGINE
+=========================
+
+File:
+src/recommendation_engine.py
+
+The recommendation engine produces simple text actions.
+
+It considers:
+
+- current state
+- risk level
+- sleep hours
+- steps
+- SpO2
+- caffeine
+- screen time
+- early warning trend
+- AQI
+- environment recommendation
+
+Examples:
+
+If state is Strain:
+Reduce training intensity and prioritize recovery.
+
+If sleep is below 6.5 hours:
+Extend sleep opportunity tonight.
+
+If steps are below 4000:
+Add light movement or walking.
+
+If SpO2 is below 95:
+Monitor oxygen saturation and avoid intense exertion.
+
+If caffeine is above 250 mg:
+Reduce caffeine.
+
+If screen time is above 240 minutes:
+Cut late-evening screen exposure.
+
+If AQI is poor:
+Keep activity indoors.
+
+
+20. STREAMLIT DASHBOARD FEATURES
+================================
+
+Main file:
+app/main.py
+
+The dashboard has three main views:
+
+1. Dashboard
+2. Analysis
+3. Recommendations
+
+20.1 Upload and controls
+------------------------
+
+The app allows:
+
+- Upload wearable CSV
+- Enter city
+- Use sample data
+- Select model:
+  - KMeans + HMM
+  - GMM + HMM
+- Run selected model
+- Download results CSV
+
+20.2 Dashboard view
+-------------------
+
+Displays:
+
+- Current state
+- Previous state
+- Confidence
+- Active model
+- Transition trend
+- Temporal state
+- Health score
+- Sleep quality
+- Recovery level
+- Stress level
+- Daily insight
+- Risk gauge
+
+20.3 Analysis view
+------------------
+
+Displays:
+
+- Silhouette score
+- Davies-Bouldin index
+- Transition rate
+- Risk monotonicity
+- AIC and BIC for GMM
+- Time-series trends
+- Baseline vs current chart
+- Feature distribution
+- State probabilities
+- HMM probabilistic states
+- HMM transition matrix
+- Early warning values
+- SHAP or fallback explainability
+- Health risk intelligence
+- What-if simulation
+
+20.4 Recommendations view
+-------------------------
+
+Displays:
+
+- Top recommendation
+- Future risk prediction
+- Personalized actions
+- Environment-aware advice
+
+20.5 What-if simulation
+-----------------------
+
+The dashboard allows the user to simulate:
+
+- sleep hours
+- HRV
+- resting heart rate
+- activity level
+
+Then it estimates:
+
+- simulated state
+- simulated risk
+- simulated health-risk categories
+
+This is useful because the user can see how changes in lifestyle inputs may affect risk.
+
+
+21. EXPLAINABILITY
+==================
+
+File:
+app/dashboard_utils.py
+
+The app tries to explain which features influenced the model.
+
+It uses:
+
+1. SHAP TreeExplainer if SHAP works.
+2. Permutation importance if SHAP is unavailable or fails.
+3. Model center influence as a fallback.
+
+Features considered for explainability include:
+
+- resting_hr_bpm
+- hrv_rmssd_ms
+- sleep_duration_hours
+- steps
+- spo2_avg_pct
+- severity_score
+- hr_dev
+- hrv_dev
+- sleep_dev
+
+Why explainability matters:
+A health app should not only say "risk is high." It should also help the user understand why.
+
+
+22. OUTPUT FILES
+================
+
+The project writes output CSV files into outputs/.
+
+Important output files:
+
+- final_results.csv
+- streamlit_gmm_results.csv
+- streamlit_kmeans_results.csv
+- metrics_gmm.csv
+- metrics_kmeans.csv
+
+Final output columns include:
+
+- original health readings
+- baseline values
+- deviation features
+- slope features
+- severity score
+- cluster label
+- state probabilities
+- HMM state sequence
+- HMM state label
+- HMM state duration
+- HMM probabilities
+- risk score
+- risk level
+- standardized stress level
+- environment adjusted risk
+- environment summary
+- environment recommendation
+
+
+23. SAVED MODEL FILES
+=====================
+
+Folder:
+models/
+
+Files:
+
+- kmeans.pkl
+- gmm.pkl
+- hmm.pkl
+
+What is a .pkl file?
+A .pkl file is a serialized Python object. It stores a trained model so it can be loaded later without retraining.
+
+Why models are saved:
+
+- Faster inference
+- Reuse trained models
+- Deployment readiness
+- Avoid repeated training cost
+
+Current note:
+Some pipeline functions train models dynamically and only save if save_trained_model or save_model is enabled. The existing .pkl files are present, but the main inference path trains fresh models from the uploaded/current dataset unless saving/loading behavior is expanded.
+
+
+24. COMPLETE END-TO-END EXAMPLE
+===============================
+
+Imagine a user uploads 6 months of wearable data.
+
+The system:
+
+1. Reads the CSV.
+2. Checks that required columns exist.
+3. Converts date strings into real dates.
+4. Sorts records by user and date.
+5. Fills missing values.
+6. Caps extreme sensor readings.
+7. Calculates each user's 7-day average HR, HRV, sleep, steps, SpO2, and BP.
+8. Calculates today's deviation from that baseline.
+9. Calculates trend slopes.
+10. Calculates severity score.
+11. Scales cluster features.
+12. Runs GMM or KMeans.
+13. Labels the day as Recovery, Baseline, or Strain.
+14. Runs HMM to understand state persistence and transition probability.
+15. Gets weather and AQI for the selected city.
+16. Calculates a risk score.
+17. Generates recommendations.
+18. Shows results in the dashboard.
+19. Allows downloading final results.
+
+
+25. WHY UNSUPERVISED LEARNING IS USED
+=====================================
+
+The project does not appear to have doctor-labeled target classes for every day.
+
+Examples of labels that are missing:
+
+- medically confirmed fatigue
+- clinically confirmed stress
+- diagnosed illness
+- overtraining diagnosis
+- recovery class assigned by expert
+
+Because labels are missing, supervised learning is not the first choice.
+
+Instead, the project uses unsupervised models:
+
+- KMeans
+- GMM
+
+These models discover patterns in the data without needing labels.
+
+Then rule-based mapping converts clusters into understandable health states.
+
+
+26. WHY HMM IS USED AFTER CLUSTERING
+====================================
+
+Clustering creates daily states.
+HMM models state sequence.
+
+This is similar to:
+
+Clustering:
+"What is today's state?"
+
+HMM:
+"How did the user get here, how stable is this state, and where might the user go next?"
+
+Health is not random day-by-day. Patterns matter.
+That is why HMM adds value.
+
+
+27. CURRENT FUNCTIONALITIES
+===========================
+
+The current project includes:
+
+1. CSV upload.
+2. Sample dataset loading.
+3. Required-column validation.
+4. Full and minimal schema support.
+5. Missing value handling.
+6. Outlier capping.
+7. Rolling baseline generation.
+8. Deviation feature generation.
+9. Z-score deviation generation.
+10. Temporal slope features.
+11. HRV coefficient of variation.
+12. Severity score.
+13. Trend score.
+14. Anomaly flag.
+15. One-hot encoding for workout type and mood.
+16. Feature scaling.
+17. KMeans clustering.
+18. GMM clustering.
+19. GMM probability/confidence output.
+20. HMM temporal state modeling.
+21. Transition matrix.
+22. Transition rate.
+23. State duration.
+24. State distribution.
+25. Risk score.
+26. Risk level.
+27. Multi-risk health intelligence.
+28. Early warning detection.
+29. Environment/weather/AQI adjustment.
+30. Personalized recommendations.
+31. Future risk text using HMM transitions.
+32. Explainability using SHAP or fallback methods.
+33. What-if simulation.
+34. Dashboard charts.
+35. Downloadable results CSV.
+36. Command-line inference.
+37. Model comparison pipeline.
+38. Saved model support using joblib.
+
+
+28. CURRENT LIMITATIONS
+=======================
+
+1. No true medical labels
+-------------------------
+
+The project uses unsupervised learning and heuristic mapping. This is useful for a final-year project, but it is not a clinically validated diagnosis system.
+
+2. Health state mapping is rule-based
+-------------------------------------
+
+Clusters are mapped using HRV, resting HR, and sleep thresholds.
+This is explainable but may not be accurate for every population.
+
+3. Model persistence can be improved
+------------------------------------
+
+The project has .pkl files, but the main pipeline often retrains on the provided dataset. A production system should clearly separate:
+
+- training
+- validation
+- model saving
+- inference
+- model versioning
+
+4. Environment API is optional
+------------------------------
+
+If OPENWEATHER_API_KEY is not configured, default environment values are used.
+
+5. Some older page files may be outdated
+----------------------------------------
+
+app/pages/analysis.py and app/pages/recommendations.py reference helper functions that are not present in the current dashboard_utils.py. The main app/main.py is the stronger current dashboard path.
+
+6. No authentication
+--------------------
+
+The app does not currently have user login, role management, or secure account handling.
+
+7. No database
+--------------
+
+Data is handled mostly through CSV upload and output files.
+
+8. No clinical validation
+-------------------------
+
+The risk score is project logic, not a medically certified score.
+
+9. Limited model evaluation
+---------------------------
+
+The project uses clustering metrics, but without real labels it cannot calculate accuracy, precision, recall, or F1 for true health outcomes.
+
+
+29. HOW TO RUN THE PROJECT
+==========================
+
+Install dependencies:
+
+pip install -r requirements.txt
+
+Run Streamlit dashboard:
+
+cd wearable-health-ai
+streamlit run app/main.py
+
+Run inference from command line:
+
+cd wearable-health-ai
+python run_inference.py data/wearables_health_6mo_daily.csv --city Bangalore --model gmm
+
+Run model comparison:
+
+cd wearable-health-ai
+python run_models.py
+
+Optional environment API:
+
+Set OPENWEATHER_API_KEY before running the app.
+
+On Windows PowerShell:
+
+$env:OPENWEATHER_API_KEY="your_api_key_here"
+
+
+30. IMPORTANT FUNCTIONS FOR BEGINNERS
+=====================================
+
+preprocess_for_modeling()
+-------------------------
+
+This is the main preprocessing function.
+
+It returns:
+
+- cleaned_df
+- feature_df
+- scaled_feature_matrix
+- hmm_sequences
+- hmm_lengths
+- cluster_feature_columns
+- hmm_feature_columns
+- encoded_feature_columns
+- summary_df
+- preview_df
+- scaler
+
+run_gmm_pipeline()
+------------------
+
+Trains GMM and returns clusters, probabilities, labels, metrics, and summary.
+
+run_kmeans_pipeline()
+---------------------
+
+Trains KMeans and returns clusters, labels, metrics, and summary.
+
+run_hmm_pipeline()
+------------------
+
+Trains HMM and returns temporal state sequence, transition matrix, transition rate, state distribution, and probabilities.
+
+calculate_risk_score()
+----------------------
+
+Calculates final risk score and risk details.
+
+generate_recommendations()
+--------------------------
+
+Creates human-readable recommendations.
+
+run_pipeline()
+--------------
+
+This is the complete inference function used by the dashboard.
+
+
+31. FUTURE FUNCTIONALITIES THAT CAN BE ADDED
+============================================
+
+31.1 User login and profile system
+----------------------------------
+
+Add:
+
+- user registration
+- login
+- password reset
+- personal profile
+- wearable device connection
+
+Implementation idea:
+
+Use Streamlit authentication, Firebase Auth, Supabase Auth, or a Flask/FastAPI backend with JWT authentication.
+
+31.2 Database storage
+---------------------
+
+Currently data is CSV-based.
+
+Add a database:
+
+- SQLite for simple local project
+- PostgreSQL for production
+- MongoDB for flexible document storage
+
+Tables could include:
+
+users
+daily_wearable_records
+model_runs
+risk_scores
+recommendations
+environment_logs
+
+31.3 Real wearable API integration
+----------------------------------
+
+Add integration with:
+
+- Fitbit API
+- Garmin Health API
+- Apple Health export
+- Google Fit / Health Connect
+- Oura Ring API
+
+Implementation idea:
+
+Create src/integrations/ folder:
+
+- fitbit_client.py
+- garmin_client.py
+- apple_health_parser.py
+- google_fit_client.py
+
+Convert all external data into the project's standard daily schema.
+
+31.4 Supervised learning model
+------------------------------
+
+If labeled data is collected, add supervised models:
+
+- Random Forest
+- XGBoost
+- LightGBM
+- Logistic Regression
+- Neural Network
+
+Labels could be:
+
+- fatigue yes/no
+- illness risk
+- recovery score category
+- overtraining risk
+- sleep deficit risk
+
+Metrics:
+
+- accuracy
+- precision
+- recall
+- F1 score
+- ROC-AUC
+
+31.5 Better anomaly detection
+-----------------------------
+
+Add models:
+
+- Isolation Forest
+- One-Class SVM
+- Local Outlier Factor
+- Autoencoder
+
+Purpose:
+Detect abnormal health days more accurately.
+
+31.6 Time-series forecasting
+----------------------------
+
+Add forecasting models:
+
+- ARIMA
+- Prophet
+- LSTM
+- Temporal Fusion Transformer
+
+Use cases:
+
+- predict tomorrow's risk score
+- predict next 7 days of sleep risk
+- forecast HRV trend
+- forecast recovery state
+
+31.7 Personalized adaptive thresholds
+-------------------------------------
+
+Current rule mapping uses fixed thresholds such as HRV > 60 and HR < 65.
+
+Improve by making thresholds personalized.
+
+Example:
+
+Recovery if:
+HRV is above user's 70th percentile
+Resting HR is below user's 30th percentile
+Sleep is above user's rolling average
+
+31.8 Clinical warning rules
+---------------------------
+
+Add configurable medical alert rules.
+
+Examples:
+
+- SpO2 below 92 repeatedly
+- resting HR unusually high for several days
+- blood pressure above safe thresholds
+- sleep below 4 hours repeatedly
+
+Important:
+This should include disclaimers and should recommend professional consultation, not diagnosis.
+
+31.9 Notification system
+------------------------
+
+Add:
+
+- email alerts
+- SMS alerts
+- push notifications
+- WhatsApp alerts
+
+Example:
+If risk is high for 3 days, send alert.
+
+31.10 Doctor/caregiver dashboard
+--------------------------------
+
+Add a separate dashboard for:
+
+- doctors
+- coaches
+- caregivers
+
+Features:
+
+- multiple users view
+- high-risk user list
+- trend comparison
+- downloadable reports
+- notes and follow-up status
+
+31.11 PDF report generation
+---------------------------
+
+Generate weekly or monthly PDF reports.
+
+Report sections:
+
+- summary
+- charts
+- risk trend
+- state distribution
+- top recommendations
+- environment impact
+- model explanation
+
+Libraries:
+
+- ReportLab
+- WeasyPrint
+- FPDF
+
+31.12 Better model training workflow
+------------------------------------
+
+Create separate scripts:
+
+- train.py
+- evaluate.py
+- predict.py
+- save_models.py
+- load_models.py
+
+Add model versioning:
+
+models/
+  v1/
+  v2/
+  latest/
+
+31.13 API backend
+-----------------
+
+Create FastAPI backend.
+
+Endpoints:
+
+POST /predict
+POST /upload
+GET /user/{id}/risk
+GET /user/{id}/recommendations
+GET /user/{id}/trends
+
+This would allow mobile apps or web apps to use the model.
+
+31.14 Mobile app
+----------------
+
+Create a mobile app using:
+
+- Flutter
+- React Native
+- Kotlin
+- Swift
+
+Mobile features:
+
+- daily risk score
+- push alerts
+- wearable sync
+- personalized recommendations
+- weekly health report
+
+31.15 Better explainability
+---------------------------
+
+Add:
+
+- SHAP summary plots
+- local explanation per day
+- natural-language explanation
+- "top 3 reasons for today's risk"
+
+Example:
+"Your risk increased mainly because HRV dropped below baseline, sleep decreased, and screen time was high."
+
+31.16 Model drift monitoring
+----------------------------
+
+Track whether model performance changes over time.
+
+Add:
+
+- data drift checks
+- feature distribution monitoring
+- state distribution monitoring
+- retraining alerts
+
+31.17 Unit tests
+----------------
+
+Add tests for:
+
+- preprocessing
+- feature engineering
+- model pipelines
+- risk scoring
+- recommendation engine
+- environment fallback
+
+Use pytest.
+
+31.18 Configuration file
+------------------------
+
+Move thresholds into config.yaml.
+
+Example:
+
+rolling_window: 7
+high_risk_threshold: 70
+moderate_risk_threshold: 40
+low_sleep_threshold: 6.5
+high_caffeine_threshold: 250
+
+This makes the project easier to tune.
+
+31.19 Data quality dashboard
+----------------------------
+
+Add page showing:
+
+- missing values
+- outliers
+- number of users
+- date coverage
+- sensor completeness
+- invalid rows
+
+31.20 Multi-language support
+----------------------------
+
+Add recommendations in:
+
+- English
+- Hindi
+- Kannada
+- Tamil
+- Telugu
+
+Useful for Indian users and wider accessibility.
+
+
+32. SUGGESTED IMPLEMENTATION ROADMAP
+====================================
+
+Phase 1: Clean project stability
+--------------------------------
+
+1. Fix README merge conflict markers.
+2. Remove or update outdated app/pages files.
+3. Confirm app/main.py is the official dashboard.
+4. Add tests for preprocessing and risk scoring.
+5. Add a config file for thresholds.
+
+Phase 2: Improve model workflow
+-------------------------------
+
+1. Create separate training script.
+2. Save scaler with model.
+3. Save feature list with model.
+4. Load saved model for inference.
+5. Add model versioning.
+6. Add evaluation summary report.
+
+Phase 3: Improve personalization
+--------------------------------
+
+1. Replace fixed HRV/HR/sleep thresholds with user percentiles.
+2. Add personalized risk thresholds.
+3. Add weekly baseline comparison.
+4. Add user-specific recommendation history.
+
+Phase 4: Add storage and authentication
+---------------------------------------
+
+1. Add database.
+2. Add login.
+3. Store uploaded records.
+4. Store model outputs.
+5. Show user history across sessions.
+
+Phase 5: Production-style deployment
+------------------------------------
+
+1. Add FastAPI backend.
+2. Add Streamlit frontend or React frontend.
+3. Add Dockerfile.
+4. Add CI tests.
+5. Deploy to cloud.
+
+
+33. POSSIBLE DATABASE DESIGN
+============================
+
+users table:
+
+- user_id
+- name
+- email
+- age
+- gender
+- height_cm
+- weight_kg
+- created_at
+
+daily_records table:
+
+- record_id
+- user_id
+- date
+- resting_hr_bpm
+- hrv_rmssd_ms
+- spo2_avg_pct
+- steps
+- sleep_duration_hours
+- caffeine_mg
+- screen_time_min
+- mood
+- workout_type
+
+model_results table:
+
+- result_id
+- user_id
+- date
+- model_type
+- state
+- confidence
+- hmm_state
+- state_duration
+- risk_score
+- risk_level
+- created_at
+
+recommendations table:
+
+- recommendation_id
+- result_id
+- recommendation_text
+- priority
+
+environment table:
+
+- environment_id
+- city
+- date
+- temperature
+- humidity
+- weather
+- aqi
+- pm2_5
+- pm10
+
+
+34. POSSIBLE API DESIGN
+=======================
+
+POST /upload
+Upload CSV and validate records.
+
+POST /predict
+Run model pipeline for uploaded data.
+
+GET /results/{user_id}
+Fetch latest risk and state.
+
+GET /trends/{user_id}
+Fetch time-series health trend.
+
+GET /recommendations/{user_id}
+Fetch latest recommendations.
+
+GET /environment/{city}
+Fetch environment context.
+
+POST /simulate
+Run what-if simulation.
+
+
+35. BEGINNER-FRIENDLY GLOSSARY
+==============================
+
+CSV:
+A spreadsheet-like text file used to store tabular data.
+
+Feature:
+A value used by a model, such as HRV deviation or sleep deviation.
+
+Baseline:
+The user's normal value calculated from recent history.
+
+Deviation:
+Difference between current value and baseline.
+
+HRV:
+Heart Rate Variability. Often used as a recovery and stress signal.
+
+SpO2:
+Blood oxygen saturation percentage.
+
+Clustering:
+Grouping similar data points without labels.
+
+KMeans:
+A clustering algorithm that groups points by nearest center.
+
+GMM:
+A probabilistic clustering model that gives state probabilities.
+
+HMM:
+A time-series model that estimates hidden states and transitions over time.
+
+Transition matrix:
+A table showing probability of moving from one state to another.
+
+Silhouette score:
+A clustering quality metric. Higher is usually better.
+
+Davies-Bouldin index:
+A clustering quality metric. Lower is usually better.
+
+AIC/BIC:
+Metrics used to compare GMM models. Lower is usually better.
+
+Risk score:
+A 0 to 100 number estimating health strain/risk.
+
+Explainability:
+Methods that show why a model made a prediction.
+
+SHAP:
+A popular model explanation method.
+
+
+36. FINAL PROJECT SUMMARY
+=========================
+
+This project is a wearable health intelligence system.
+
+It starts with raw wearable data and transforms it into:
+
+- cleaned health records
+- personalized baseline features
+- deviation and trend signals
+- health state classification
+- temporal transition analysis
+- risk scoring
+- environment-aware adjustment
+- personalized recommendations
+- visual dashboard insights
+
+The model ideology is:
+
+1. Health should be personalized.
+2. Today's reading should be compared with the user's own baseline.
+3. Multiple signals together are more useful than one signal alone.
+4. Time patterns matter.
+5. Health states are uncertain, so probabilities are useful.
+6. Recommendations should be understandable and actionable.
+
+The project uses:
+
+- KMeans as a simple baseline clustering model.
+- GMM as a probabilistic health-state model.
+- HMM as a temporal state-transition model.
+- Rule-based and feature-based risk intelligence to make the output useful for users.
+
+For a final-year project, this is a strong structure because it includes data preprocessing, machine learning, temporal modeling, risk scoring, recommendations, explainability, visualization, and future deployment potential.
+
