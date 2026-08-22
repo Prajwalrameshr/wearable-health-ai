@@ -84,7 +84,6 @@ def index():
 @app.get("/api/health/status")
 def health_check(db: Session = Depends(get_db)):
     try:
-        # Check DB connectivity
         db_log_count = db.query(HealthLog).count()
         return {
             "status": "healthy",
@@ -102,13 +101,11 @@ def health_check(db: Session = Depends(get_db)):
 @app.post("/api/health/records", response_model=HealthResponse)
 def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)):
     try:
-        # Determine record_date (YYYY-MM-DD)
         if payload.recordStartTime and "T" in payload.recordStartTime:
             record_date = payload.recordStartTime.split("T")[0]
         else:
             record_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-        # 1. Perform Daily Upsert (1 record per user per date)
         existing_log = (
             db.query(HealthLog)
             .filter(
@@ -119,7 +116,6 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
         )
 
         if existing_log:
-            # Update today's existing row
             existing_log.steps = payload.steps
             existing_log.heart_rate = payload.heartRate
             existing_log.oxygen_saturation = payload.oxygenSaturation
@@ -129,7 +125,6 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
             existing_log.collected_at = payload.collectedAt
             log_entry = existing_log
         else:
-            # Insert new daily row
             log_entry = HealthLog(
                 device_user_id=payload.deviceUserId,
                 record_date=record_date,
@@ -146,7 +141,6 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
         db.commit()
         db.refresh(log_entry)
 
-        # 2. Execute ML Inference with dynamic 7D/30D baseline window
         city_name = payload.city or "Bangalore"
         model_name = payload.modelType or "gmm"
         prediction = predict_health_risk(
@@ -156,7 +150,6 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
             model_type=model_name,
         )
 
-        # 3. Save ML predictions back to DB log entry
         log_entry.predicted_state = str(prediction.get("state"))
         log_entry.risk_score = float(prediction.get("riskScore", 0.0))
         log_entry.risk_level = str(prediction.get("riskLevel"))
@@ -166,7 +159,6 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
 
         db.commit()
 
-        # 4. Construct response payload
         prediction["userId"] = payload.deviceUserId
         prediction["date"] = record_date
         prediction["modelType"] = model_name

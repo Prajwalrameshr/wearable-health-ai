@@ -18,7 +18,7 @@ from src.cohort_benchmarks import benchmark_against_cohort
 from models import HealthLog
 
 
-def predict_health_risk(device_user_id: str, db: Session, model_type: str = "gmm") -> Dict[str, Any]:
+def predict_health_risk(device_user_id: str, db: Session, city: str = "Bangalore", model_type: str = "gmm") -> Dict[str, Any]:
     """
     Evaluates stored historical logs for device_user_id in PostgreSQL:
     - < 7 records: Returns status 'insufficient_data'
