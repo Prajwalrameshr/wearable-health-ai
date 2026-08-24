@@ -1,0 +1,13 @@
+# Table 1: Synthetic Dataset Characteristics & Preprocessing Rules
+
+| Characteristic                  | Value                                                        |
+|:--------------------------------|:-------------------------------------------------------------|
+| Data Provenance                 | Synthetic Longitudinal Wearable Cohort                       |
+| Clinical Status                 | Non-clinical / Synthetic Research Benchmark                  |
+| Total Users                     | 300                                                          |
+| Total Daily Observations        | 55200                                                        |
+| Temporal Duration per User      | 180 Days (6 Months)                                          |
+| Primary Physiological Variables | Resting HR, HRV RMSSD, SpO2, Sleep Duration, Steps, SBP, DBP |
+| Missing Value Strategy          | Causal Forward Fill (No Backward Fill / No Future Leakage)   |
+| Outlier Handling                | Causal Expanding Window IQR Bounds (<= t)                    |
+| Baseline Initialization         | 7-Day Warm-Up Window (min_periods=7)                         |

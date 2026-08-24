@@ -1,0 +1,6 @@
+# Table 3: Quantitative Clustering Improvement via Personalized Baseline Deviations
+
+| Baseline_ID   | Description                 |   Silhouette |   Davies_Bouldin |   Calinski_Harabasz | Transition_Entropy_Bits   | Seq_LogLikelihood   |
+|:--------------|:----------------------------|-------------:|-----------------:|--------------------:|:--------------------------|:--------------------|
+| B0            | Global Raw Physiology (GMM) |       0.1724 |           1.4804 |             1836.48 | N/A                       | N/A                 |
+| B1            | Personalized Threshold Rule |       0.0098 |           1.9718 |             1189.35 | N/A                       | N/A                 |

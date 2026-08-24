@@ -21,7 +21,7 @@ DEFAULT_DATE_COLUMN = "date"
 STANDARD_STATES = ["Recovery", "Baseline", "Strain"]
 
 
-def load_hmm_model(model_name: str = "hmm.pkl"):
+def load_hmm_model(model_name: str = "hmm.pkl") -> Any | None:
     model_path = MODEL_DIR / model_name
     if model_path.exists() and model_path.stat().st_size > 0:
         try:
@@ -38,7 +38,12 @@ def save_hmm_model(model: Any, model_name: str = "hmm.pkl") -> Path:
     return model_path
 
 
-def validate_hmm_input(df: pd.DataFrame, observation_column: str, user_column: str = DEFAULT_USER_COLUMN, date_column: str = DEFAULT_DATE_COLUMN) -> pd.DataFrame:
+def validate_hmm_input(
+    df: pd.DataFrame,
+    observation_column: str,
+    user_column: str = DEFAULT_USER_COLUMN,
+    date_column: str = DEFAULT_DATE_COLUMN,
+) -> pd.DataFrame:
     required_columns = [user_column, date_column, observation_column]
     missing_columns = [column for column in required_columns if column not in df.columns]
     if missing_columns:
@@ -50,23 +55,42 @@ def validate_hmm_input(df: pd.DataFrame, observation_column: str, user_column: s
     return ordered.sort_values([user_column, date_column]).reset_index(drop=True)
 
 
-def build_hmm_sequences(df: pd.DataFrame, observation_column: str, user_column: str = DEFAULT_USER_COLUMN) -> tuple[np.ndarray, list[int], pd.Index, list[int]]:
+def build_hmm_sequences(
+    df: pd.DataFrame,
+    observation_column: str,
+    user_column: str = DEFAULT_USER_COLUMN,
+) -> tuple[np.ndarray, list[int], pd.Index, list[int]]:
+    """Build multi-user discrete observation sequences with explicit sequence length tracking."""
     observed_labels = sorted(df[observation_column].dropna().astype(int).unique().tolist())
     label_to_index = {label: idx for idx, label in enumerate(observed_labels)}
     sequences: list[np.ndarray] = []
     lengths: list[int] = []
     ordered_index_parts: list[pd.Index] = []
+
     for _, group in df.groupby(user_column, sort=False):
         group_obs = group[observation_column].map(label_to_index).to_numpy(dtype=int).reshape(-1, 1)
         sequences.append(group_obs)
         lengths.append(len(group_obs))
         ordered_index_parts.append(group.index)
+
     concatenated = np.vstack(sequences) if sequences else np.empty((0, 1), dtype=int)
-    ordered_index = ordered_index_parts[0].append(ordered_index_parts[1:]) if len(ordered_index_parts) > 1 else (ordered_index_parts[0] if ordered_index_parts else pd.Index([]))
+    ordered_index = (
+        ordered_index_parts[0].append(ordered_index_parts[1:])
+        if len(ordered_index_parts) > 1
+        else (ordered_index_parts[0] if ordered_index_parts else pd.Index([]))
+    )
     return concatenated, lengths, ordered_index, observed_labels
 
 
-def train_hmm(df: pd.DataFrame, observation_column: str, n_components: int = 3, user_column: str = DEFAULT_USER_COLUMN, date_column: str = DEFAULT_DATE_COLUMN, random_state: int = 42) -> tuple[Any, pd.DataFrame, np.ndarray, list[int], list[int]]:
+def train_hmm(
+    df: pd.DataFrame,
+    observation_column: str,
+    n_components: int = 3,
+    user_column: str = DEFAULT_USER_COLUMN,
+    date_column: str = DEFAULT_DATE_COLUMN,
+    random_state: int = 42,
+) -> tuple[Any, pd.DataFrame, np.ndarray, list[int], list[int]]:
+    """Train Categorical or Gaussian HMM with strict per-user sequence boundaries."""
     ordered_df = validate_hmm_input(df, observation_column=observation_column, user_column=user_column, date_column=date_column)
     observations, lengths, _, observed_labels = build_hmm_sequences(ordered_df, observation_column=observation_column, user_column=user_column)
     effective_components = max(1, min(n_components, len(observed_labels), len(observations)))
@@ -79,7 +103,15 @@ def train_hmm(df: pd.DataFrame, observation_column: str, n_components: int = 3, 
     return model, ordered_df, observations, lengths, observed_labels
 
 
-def decode_states(model: Any, df: pd.DataFrame, observation_column: str, output_column: str = "hmm_state_sequence", user_column: str = DEFAULT_USER_COLUMN, date_column: str = DEFAULT_DATE_COLUMN) -> pd.DataFrame:
+def decode_states(
+    model: Any,
+    df: pd.DataFrame,
+    observation_column: str,
+    output_column: str = "hmm_state_sequence",
+    user_column: str = DEFAULT_USER_COLUMN,
+    date_column: str = DEFAULT_DATE_COLUMN,
+) -> pd.DataFrame:
+    """Decode HMM states on held-out or inference data using sequence lengths."""
     ordered_df = validate_hmm_input(df, observation_column=observation_column, user_column=user_column, date_column=date_column)
     observations, lengths, _, _ = build_hmm_sequences(ordered_df, observation_column=observation_column, user_column=user_column)
     try:
@@ -88,6 +120,7 @@ def decode_states(model: Any, df: pd.DataFrame, observation_column: str, output_
     except Exception:
         hidden_states = model.predict(observations.astype(float), lengths)
         posteriors = model.predict_proba(observations.astype(float), lengths)
+
     decoded_df = ordered_df.copy()
     decoded_df[output_column] = hidden_states.astype(int)
     for state_index in range(posteriors.shape[1]):
@@ -104,7 +137,12 @@ def build_hmm_state_map(decoded_df: pd.DataFrame, state_column: str, severity_co
     return {state: STANDARD_STATES[min(index, len(STANDARD_STATES) - 1)] for index, state in enumerate(ordered_states)}
 
 
-def attach_state_persistence(decoded_df: pd.DataFrame, state_column: str = "hmm_state_sequence", user_column: str = DEFAULT_USER_COLUMN, output_column: str | None = None) -> pd.DataFrame:
+def attach_state_persistence(
+    decoded_df: pd.DataFrame,
+    state_column: str = "hmm_state_sequence",
+    user_column: str = DEFAULT_USER_COLUMN,
+    output_column: str | None = None,
+) -> pd.DataFrame:
     enriched = decoded_df.copy()
     duration_column = output_column or f"{state_column}_duration"
     enriched[duration_column] = 0
@@ -122,12 +160,19 @@ def attach_state_persistence(decoded_df: pd.DataFrame, state_column: str = "hmm_
     return enriched
 
 
-def compute_transition_matrix(model: GaussianHMM, state_map: dict[int, str] | None = None) -> pd.DataFrame:
-    state_names = [state_map.get(idx, f"state_{idx}") for idx in range(model.n_components)] if state_map else [f"state_{idx}" for idx in range(model.n_components)]
-    return pd.DataFrame(model.transmat_, index=state_names, columns=state_names).round(4)
+def compute_transition_matrix(model: Any, state_map: dict[int, str] | None = None) -> pd.DataFrame:
+    if hasattr(model, "transmat_"):
+        n_comp = model.n_components
+        state_names = [state_map.get(idx, f"state_{idx}") for idx in range(n_comp)] if state_map else [f"state_{idx}" for idx in range(n_comp)]
+        return pd.DataFrame(model.transmat_, index=state_names, columns=state_names).round(4)
+    return pd.DataFrame()
 
 
-def compute_transition_rate(decoded_df: pd.DataFrame, state_column: str = "hmm_state_sequence", user_column: str = DEFAULT_USER_COLUMN) -> float:
+def compute_transition_rate(
+    decoded_df: pd.DataFrame,
+    state_column: str = "hmm_state_sequence",
+    user_column: str = DEFAULT_USER_COLUMN,
+) -> float:
     total_days = 0
     total_transitions = 0
     for _, group in decoded_df.groupby(user_column, sort=False):
@@ -138,41 +183,16 @@ def compute_transition_rate(decoded_df: pd.DataFrame, state_column: str = "hmm_s
     return float(total_transitions / total_days) if total_days else 0.0
 
 
-def compute_state_distribution(decoded_df: pd.DataFrame, state_column: str = "hmm_state_sequence", state_map: dict[int, str] | None = None) -> pd.Series:
+def compute_state_distribution(
+    decoded_df: pd.DataFrame,
+    state_column: str = "hmm_state_sequence",
+    state_map: dict[int, str] | None = None,
+) -> pd.Series:
     distribution = decoded_df[state_column].value_counts(normalize=True).sort_index() * 100.0
-    distribution.index = [state_map.get(int(idx), f"state_{int(idx)}") if state_map else f"state_{int(idx)}" for idx in distribution.index]
+    distribution.index = [
+        state_map.get(int(idx), f"state_{int(idx)}") if state_map else f"state_{int(idx)}" for idx in distribution.index
+    ]
     return distribution.round(2)
-
-
-def run_hmm_pipeline(df: pd.DataFrame, observation_column: str, n_components: int = 3, user_column: str = DEFAULT_USER_COLUMN, date_column: str = DEFAULT_DATE_COLUMN, model_name: str | None = None, save_model: bool = False) -> dict[str, Any]:
-    model, ordered_df, observations, lengths, observed_labels = train_hmm(df, observation_column=observation_column, n_components=n_components, user_column=user_column, date_column=date_column)
-    output_column = f"{observation_column}_hmm_state_sequence"
-    decoded_df = decode_states(model, ordered_df, observation_column=observation_column, output_column=output_column, user_column=user_column, date_column=date_column)
-    state_map = build_hmm_state_map(decoded_df, state_column=output_column)
-    decoded_df[f"{output_column}_label"] = decoded_df[output_column].map(state_map)
-    renamed_probability_columns: list[str] = []
-    for state_idx, state_label in state_map.items():
-        source_column = f"{output_column}_prob_{int(state_idx)}"
-        target_column = f"{output_column}_{str(state_label).lower().replace(' ', '_')}_prob"
-        if source_column in decoded_df.columns:
-            decoded_df[target_column] = decoded_df[source_column]
-            renamed_probability_columns.append(target_column)
-    duration_column = f"{output_column}_duration"
-    decoded_df = attach_state_persistence(decoded_df, state_column=output_column, user_column=user_column, output_column=duration_column)
-    transition_matrix = compute_transition_matrix(model, state_map=state_map)
-    saved_model_path = save_hmm_model(model, model_name=model_name or f"{observation_column}_hmm.pkl") if save_model else None
-    return {
-        "decoded_df": decoded_df,
-        "transition_matrix": transition_matrix,
-        "transition_rate": compute_transition_rate(decoded_df, state_column=output_column, user_column=user_column),
-        "state_distribution": compute_state_distribution(decoded_df, state_column=output_column, state_map=state_map),
-        "state_map": state_map,
-        "duration_column": duration_column,
-        "probability_columns": [f"{output_column}_prob_{state_idx}" for state_idx in range(model.n_components)],
-        "named_probability_columns": renamed_probability_columns,
-        "state_column": output_column,
-        "model_path": saved_model_path,
-    }
 
 
 def compute_transition_entropy(probabilities: np.ndarray) -> float:
@@ -190,15 +210,16 @@ def run_soft_probability_hmm(
     user_column: str = DEFAULT_USER_COLUMN,
     date_column: str = DEFAULT_DATE_COLUMN,
     random_state: int = 42,
+    fitted_model: GaussianHMM | None = None,
 ) -> dict[str, Any]:
     """
     Fits continuous HMM directly on continuous GMM posterior probability distributions [prob_recovery, prob_baseline, prob_strain]
-    without discarding uncertainty via hard integer discretization.
+    without discarding uncertainty via hard integer discretization. Sequence lengths are explicitly passed per user.
     """
     prob_cols = probability_columns or [f"prob_{state.lower().replace(' ', '_')}" for state in STANDARD_STATES]
-    missing_cols = [c for c in prob_cols if c not in labeled_df.columns]
-    if missing_cols:
-        return {"fitted": False, "reason": f"Missing probability columns: {missing_cols}"}
+    prob_cols = [c for c in prob_cols if c in labeled_df.columns]
+    if not prob_cols:
+        return {"fitted": False, "reason": "No probability columns available."}
 
     ordered = labeled_df.sort_values([user_column, date_column]).reset_index(drop=True)
     sequences: list[np.ndarray] = []
@@ -212,18 +233,79 @@ def run_soft_probability_hmm(
         return {"fitted": False, "reason": "No sequences available."}
 
     X = np.vstack(sequences)
-    model = GaussianHMM(n_components=n_components, covariance_type="diag", n_iter=200, random_state=random_state, min_covar=1e-3)
-    model.fit(X, lengths)
+    effective_k = max(1, min(n_components, X.shape[1]))
+
+    if fitted_model is None:
+        model = GaussianHMM(
+            n_components=effective_k,
+            covariance_type="diag",
+            n_iter=200,
+            random_state=random_state,
+            min_covar=1e-3,
+            params="mct",
+            init_params="mct",
+        )
+        model.startprob_ = np.full(effective_k, 1.0 / effective_k)
+        model.transmat_ = np.full((effective_k, effective_k), 1.0 / effective_k)
+        model.fit(X, lengths)
+    else:
+        model = fitted_model
+
+    # Sanitize startprob_ and transmat_ to guarantee sum to 1 without NaNs
+    start_sum = float(np.sum(model.startprob_))
+    if np.isnan(start_sum) or start_sum <= 0:
+        model.startprob_ = np.full(effective_k, 1.0 / effective_k)
+    else:
+        model.startprob_ = model.startprob_ / start_sum
+
+    for i in range(model.n_components):
+        row_sum = float(np.sum(model.transmat_[i]))
+        if np.isnan(row_sum) or row_sum <= 0:
+            model.transmat_[i] = np.full(effective_k, 1.0 / effective_k)
+        else:
+            model.transmat_[i] = model.transmat_[i] / row_sum
 
     states = model.predict(X, lengths)
     posteriors = model.predict_proba(X, lengths)
     entropy = compute_transition_entropy(posteriors)
 
+    try:
+        total_ll = float(model.score(X, lengths))
+        mean_log_likelihood = round(total_ll / len(X), 4)
+    except Exception:
+        mean_log_likelihood = 0.0
+
     decoded = ordered.copy()
     decoded["soft_hmm_state"] = states.astype(int)
     decoded["soft_hmm_confidence"] = posteriors.max(axis=1)
 
-    transmat_df = pd.DataFrame(model.transmat_, index=STANDARD_STATES[:n_components], columns=STANDARD_STATES[:n_components]).round(4)
+    # Compute temporal metrics: state duration and transition stability
+    durations = []
+    same_state_count = 0
+    total_steps = 0
+    for _, group in decoded.groupby(user_column, sort=False):
+        g_states = group["soft_hmm_state"].to_numpy()
+        total_steps += len(g_states)
+        if len(g_states) > 1:
+            same_state_count += int(np.sum(g_states[1:] == g_states[:-1]))
+
+        cur_len = 1
+        for j in range(1, len(g_states)):
+            if g_states[j] == g_states[j - 1]:
+                cur_len += 1
+            else:
+                durations.append(cur_len)
+                cur_len = 1
+        durations.append(cur_len)
+
+    mean_duration = round(float(np.mean(durations)), 2) if durations else 1.0
+    transition_stability = round(float(same_state_count / max(1, total_steps - len(lengths))), 4)
+
+    transmat_df = pd.DataFrame(
+        model.transmat_,
+        index=STANDARD_STATES[:model.n_components],
+        columns=STANDARD_STATES[:model.n_components],
+    ).round(4)
 
     return {
         "fitted": True,
@@ -232,35 +314,60 @@ def run_soft_probability_hmm(
         "transition_matrix": transmat_df,
         "transition_entropy_bits": round(entropy, 4),
         "mean_confidence": round(float(posteriors.max(axis=1).mean()) * 100.0, 1),
+        "sequence_log_likelihood": mean_log_likelihood,
+        "mean_duration_days": mean_duration,
+        "transition_stability": transition_stability,
     }
 
 
-MODEL_DIR = Path(__file__).resolve().parents[1] / "models"
+def run_hmm_pipeline(
+    df: pd.DataFrame,
+    observation_column: str,
+    n_components: int = 3,
+    user_column: str = DEFAULT_USER_COLUMN,
+    date_column: str = DEFAULT_DATE_COLUMN,
+    model_name: str | None = None,
+    save_model: bool = True,
+    fitted_model: Any | None = None,
+) -> dict[str, Any]:
+    if fitted_model is None:
+        model, ordered_df, observations, lengths, observed_labels = train_hmm(
+            df, observation_column=observation_column, n_components=n_components, user_column=user_column, date_column=date_column
+        )
+    else:
+        model = fitted_model
+        ordered_df = validate_hmm_input(df, observation_column=observation_column, user_column=user_column, date_column=date_column)
 
+    output_column = f"{observation_column}_hmm_state_sequence"
+    decoded_df = decode_states(
+        model, ordered_df, observation_column=observation_column, output_column=output_column, user_column=user_column, date_column=date_column
+    )
+    state_map = build_hmm_state_map(decoded_df, state_column=output_column)
+    decoded_df[f"{output_column}_label"] = decoded_df[output_column].map(state_map)
 
-def save_hmm_model(model: Any, model_path: str | Path | None = None, model_name: str | Path | None = None) -> Path:
-    """Save trained HMM model to disk."""
-    target_path = Path(model_path or model_name or (MODEL_DIR / "hmm.pkl"))
-    if not target_path.is_absolute():
-        target_path = MODEL_DIR / target_path.name
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, target_path)
-    return target_path
+    renamed_probability_columns: list[str] = []
+    for state_idx, state_label in state_map.items():
+        source_column = f"{output_column}_prob_{int(state_idx)}"
+        target_column = f"{output_column}_{str(state_label).lower().replace(' ', '_')}_prob"
+        if source_column in decoded_df.columns:
+            decoded_df[target_column] = decoded_df[source_column]
+            renamed_probability_columns.append(target_column)
 
+    duration_column = f"{output_column}_duration"
+    decoded_df = attach_state_persistence(decoded_df, state_column=output_column, user_column=user_column, output_column=duration_column)
+    transition_matrix = compute_transition_matrix(model, state_map=state_map)
+    saved_model_path = save_hmm_model(model, model_name=model_name or f"{observation_column}_hmm.pkl") if save_model and fitted_model is None else None
 
-
-def load_hmm_model(model_path: str | Path | None = None) -> Any:
-    """Load persisted HMM model from disk."""
-    target_path = Path(model_path) if model_path is not None else MODEL_DIR / "hmm.pkl"
-    return joblib.load(target_path)
-
-
-def run_all_hmm_modes(df: pd.DataFrame, n_components: int = 3) -> dict[str, dict[str, Any]]:
-    results: dict[str, dict[str, Any]] = {}
-    for observation_column in ["gmm_cluster", "kmeans_cluster"]:
-        if observation_column in df.columns:
-            results[observation_column] = run_hmm_pipeline(df, observation_column=observation_column, n_components=n_components)
-    results["soft_probability_hmm"] = run_soft_probability_hmm(df, n_components=n_components)
-    return results
-
-
+    return {
+        "decoded_df": decoded_df,
+        "transition_matrix": transition_matrix,
+        "transition_rate": compute_transition_rate(decoded_df, state_column=output_column, user_column=user_column),
+        "state_distribution": compute_state_distribution(decoded_df, state_column=output_column, state_map=state_map),
+        "state_map": state_map,
+        "duration_column": duration_column,
+        "probability_columns": [f"{output_column}_prob_{state_idx}" for state_idx in range(model.n_components)],
+        "named_probability_columns": renamed_probability_columns,
+        "state_column": output_column,
+        "model": model,
+        "model_path": saved_model_path,
+    }

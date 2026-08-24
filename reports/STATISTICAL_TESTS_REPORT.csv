@@ -1,0 +1,6 @@
+comparison,model_a,model_b,mean_a,mean_b,mean_diff,std_diff,cohens_dz,t_stat_paired,p_val_raw,t_stat_nadeau_bengio,p_val_nadeau_bengio,p_val_holm_adjusted,significant_after_holm
+Exp2 Real->Real: GMM vs Severity Tercile,GMM,Severity Tercile,0.2168,0.0313,0.1855,0.0054,34.4433,77.0176,1.7033505566042363e-07,51.345,8.611118813561802e-07,4e-06,YES
+Exp2 Real->Real: GMM vs KMeans,GMM,KMeans,0.2168,0.2308,-0.0139,0.0017,-8.1064,-18.1264,5.446837510153507e-05,-12.0843,0.0002689671433047103,0.000807,YES
+Exp3 Zero-Shot: GMM vs Severity Tercile,GMM,Severity Tercile,0.2117,0.0312,0.1805,0.0073,24.6195,55.0508,6.518395400381366e-07,36.7006,3.2908947398269106e-06,1.3e-05,YES
+Exp3 Zero-Shot: GMM vs KMeans,GMM,KMeans,0.2117,0.22,-0.0083,0.0029,-2.8675,-6.412,0.0030397550277976395,-4.2747,0.012902052111374962,0.025804,YES
+Exp3 Zero-Shot vs Exp2 Real Baseline (GMM),Zero-Shot GMM,Real Baseline GMM,0.2117,0.2168,-0.0051,0.0038,-1.3531,-3.0257,0.03894391374890409,-2.0171,0.11386761614014262,0.113868,NO

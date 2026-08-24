@@ -1,0 +1,6 @@
+stage,rows_retained,pct_rows_retained,users_retained,pct_users_retained,description
+Raw Fitbit Dataset,7410,100.00%,71,100.00%,Original raw dataset (daily_fitbit_sema_df_unprocessed.csv)
+After Duplicate & Date Cleaning,7410,100.00%,71,100.00%,Zero duplicate rows or duplicate user-date pairs
+After Primary Feature Selection & Causal Infill (limit=2d),4159,56.13%,69,97.18%,Primary core 6-signal space with max 2-day within-user causal ffill
+After HMM Sequence Eligibility Gate (>=14 total days, >=7 post-warmup days),4115,55.53%,61,85.92%,Final HMM-eligible real cohort used across Experiments 2, 3, and 4
+Post-Warmup Baseline Valid Observations,3749,50.59%,61,85.92%,Observations with calibrated 7-day rolling baselines (baseline_valid == True)

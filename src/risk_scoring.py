@@ -50,13 +50,32 @@ def detect_early_warning_signal(features: pd.DataFrame | pd.Series | dict[str, A
     hrv_slope = float(row.get(EARLY_WARNING_FEATURE_COLUMNS[0], 0.0))
     sleep_slope = float(row.get(EARLY_WARNING_FEATURE_COLUMNS[1], 0.0))
     if hrv_slope < -0.05 and sleep_slope < -0.05:
-        return {"triggered": True, "hrv_dev_slope_7d": round(hrv_slope, 4), "sleep_dev_slope_7d": round(sleep_slope, 4), "message": "HRV and sleep are both deteriorating.", "trend": "Deteriorating"}
+        return {
+            "triggered": True,
+            "hrv_dev_slope_7d": round(hrv_slope, 4),
+            "sleep_dev_slope_7d": round(sleep_slope, 4),
+            "message": "HRV and sleep are both deteriorating.",
+            "trend": "Deteriorating",
+        }
     if hrv_slope > 0.05 and sleep_slope > 0.05:
-        return {"triggered": False, "hrv_dev_slope_7d": round(hrv_slope, 4), "sleep_dev_slope_7d": round(sleep_slope, 4), "message": "HRV and sleep are improving together.", "trend": "Improving"}
-    return {"triggered": False, "hrv_dev_slope_7d": round(hrv_slope, 4), "sleep_dev_slope_7d": round(sleep_slope, 4), "message": "No strong early warning pattern detected.", "trend": "Stable"}
+        return {
+            "triggered": False,
+            "hrv_dev_slope_7d": round(hrv_slope, 4),
+            "sleep_dev_slope_7d": round(sleep_slope, 4),
+            "message": "HRV and sleep are improving together.",
+            "trend": "Improving",
+        }
+    return {
+        "triggered": False,
+        "hrv_dev_slope_7d": round(hrv_slope, 4),
+        "sleep_dev_slope_7d": round(sleep_slope, 4),
+        "message": "No strong early warning pattern detected.",
+        "trend": "Stable",
+    }
 
 
 def compute_health_risk_intelligence(features: pd.DataFrame | pd.Series | dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Compute sub-dimension physiological strain scores purely from wearable physiological signals."""
     row = _ensure_row(features)
     severity = float(row.get("severity_score", 0.0))
     hrv_dev = abs(float(row.get("hrv_dev", 0.0)))
@@ -75,21 +94,20 @@ def compute_health_risk_intelligence(features: pd.DataFrame | pd.Series | dict[s
         "overtraining": _clamp_pct(severity * 5 + max(0.0, 12000 - steps) / 180 + hr_dev * 8),
         "fatigue_accumulation": _clamp_pct(severity * 5 + max(0.0, 6.5 - sleep_hours) * 12),
         "burnout": _clamp_pct(severity * 4 + max(0.0, screen_time - 240) * 0.12),
-        "circadian_disruption": _clamp_pct(max(0.0, screen_time - 180) * 0.15 + sleep_dev * 8),
+        "circadian_disruption": _clamp_pct(max(0.0, screen_time - 180) * 0.18 + sleep_dev * 8),
         "metabolic_stress": _clamp_pct(severity * 4 + max(0.0, caffeine - 250) / 5 + max(0.0, 5000 - steps) / 120),
-        "autonomic_imbalance": _clamp_pct(hrv_dev * 16 + hr_dev * 10 + severity * 5),
+        "autonomic_imbalance": _clamp_pct(hrv_dev * 18 + hr_dev * 12),
     }
-    return {key: {"label": RISK_LABELS[key], "score": value, "level": _risk_level(value)} for key, value in raw_scores.items()}
+    return {
+        key: {"label": RISK_LABELS[key], "score": value, "level": _risk_level(value)}
+        for key, value in raw_scores.items()
+    }
 
 
 def evaluate_clinical_persistence(features: pd.DataFrame | pd.Series | dict[str, Any], user_id: str | None = None) -> dict[str, Any]:
     """
-    Evaluates multi-day persistence of physiological anomalies per user.
-    Rules:
-    - Rule 1 (Cardiovascular Alert): hr_dev_z > +2.0 and hrv_dev_z < -1.5 for >= 3 consecutive days.
-    - Rule 2 (Hypoxia Alert): spo2_avg_pct < 93.0% for >= 2 consecutive days.
-    - Rule 3 (Chronic Severity): severity_score > 3.5 for >= 4 consecutive days.
-    - Rule 4 (Sleep Deficit Persistence): sleep_duration_hours < 5.5 for >= 3 consecutive days.
+    Evaluates multi-day persistence of physiological strain signals per user.
+    Note: These are physiological strain metrics, not medical diagnostic rules.
     """
     if isinstance(features, (pd.Series, dict)):
         row = _ensure_row(features)
@@ -107,7 +125,7 @@ def evaluate_clinical_persistence(features: pd.DataFrame | pd.Series | dict[str,
             "advisory_level": level,
             "persistent_triggers": triggers,
             "consecutive_high_risk_days": 1 if triggers else 0,
-            "clinical_summary_message": " ".join(triggers) or "No persistent multi-day clinical anomaly detected.",
+            "clinical_summary_message": " ".join(triggers) or "No persistent multi-day physiological anomaly detected.",
         }
 
     target_df = features.copy()
@@ -115,7 +133,12 @@ def evaluate_clinical_persistence(features: pd.DataFrame | pd.Series | dict[str,
         target_df = target_df[target_df["user_id"] == user_id]
 
     if target_df.empty:
-        return {"advisory_level": "Normal", "persistent_triggers": [], "consecutive_high_risk_days": 0, "clinical_summary_message": "No historical records available."}
+        return {
+            "advisory_level": "Normal",
+            "persistent_triggers": [],
+            "consecutive_high_risk_days": 0,
+            "clinical_summary_message": "No historical records available.",
+        }
 
     target_df = target_df.sort_values("date").reset_index(drop=True)
     cardio_days, hypoxia_days, severity_days, sleep_days = 0, 0, 0, 0
@@ -127,21 +150,25 @@ def evaluate_clinical_persistence(features: pd.DataFrame | pd.Series | dict[str,
         is_sev = float(r.get("severity_score", 0.0)) > 3.5
         is_sleep = float(r.get("sleep_duration_hours", 7.0)) < 5.5
 
-        if is_cardio: cardio_days += 1
-        else:
-            if idx == len(target_df) - 1: cardio_days = 0
+        if is_cardio:
+            cardio_days += 1
+        elif idx == len(target_df) - 1:
+            cardio_days = 0
 
-        if is_hypoxia: hypoxia_days += 1
-        else:
-            if idx == len(target_df) - 1: hypoxia_days = 0
+        if is_hypoxia:
+            hypoxia_days += 1
+        elif idx == len(target_df) - 1:
+            hypoxia_days = 0
 
-        if is_sev: severity_days += 1
-        else:
-            if idx == len(target_df) - 1: severity_days = 0
+        if is_sev:
+            severity_days += 1
+        elif idx == len(target_df) - 1:
+            severity_days = 0
 
-        if is_sleep: sleep_days += 1
-        else:
-            if idx == len(target_df) - 1: sleep_days = 0
+        if is_sleep:
+            sleep_days += 1
+        elif idx == len(target_df) - 1:
+            sleep_days = 0
 
     triggers = []
     if cardio_days >= 3:
@@ -153,7 +180,11 @@ def evaluate_clinical_persistence(features: pd.DataFrame | pd.Series | dict[str,
     if sleep_days >= 3:
         triggers.append(f"Severe sleep deficit (<5.5h) persisting for {sleep_days} consecutive days.")
 
-    advisory_level = "Clinical Advisory" if (cardio_days >= 3 or hypoxia_days >= 2 or severity_days >= 4) else "Attention Needed" if triggers else "Normal"
+    advisory_level = (
+        "Strain Advisory" if (cardio_days >= 3 or hypoxia_days >= 2 or severity_days >= 4)
+        else "Attention Needed" if triggers
+        else "Normal"
+    )
     consecutive_days = max(cardio_days, hypoxia_days, severity_days, sleep_days)
     summary_message = " ".join(triggers) if triggers else "All physiological persistence signals remain within baseline boundaries."
 
@@ -165,29 +196,40 @@ def evaluate_clinical_persistence(features: pd.DataFrame | pd.Series | dict[str,
     }
 
 
-def calculate_risk_score(features: pd.DataFrame | pd.Series | dict[str, Any], state: str | None = None, state_confidence: float | None = None, state_duration: int | None = None) -> dict[str, Any]:
+def calculate_risk_score(
+    features: pd.DataFrame | pd.Series | dict[str, Any],
+    state: str | None = None,
+    state_confidence: float | None = None,
+    state_duration: int | None = None,
+) -> dict[str, Any]:
+    """Calculate physiological risk index strictly based on wearable physiological measurements."""
     row = _ensure_row(features)
     severity_score = float(row.get("severity_score", 0.0))
-    recommendation_context = {column: float(row.get(column, 0.0)) for column in RECOMMENDATION_FEATURE_COLUMNS if column in row.index}
+    recommendation_context = {
+        column: float(row.get(column, 0.0)) for column in RECOMMENDATION_FEATURE_COLUMNS if column in row.index
+    }
     recommendation_context["sleep_duration_hours"] = float(row.get("sleep_duration_hours", 0.0))
     early_warning = detect_early_warning_signal(row)
     clinical_escalation = evaluate_clinical_persistence(features)
     risk_intelligence = compute_health_risk_intelligence(row)
     score = _clamp_pct(sum(item["score"] for item in risk_intelligence.values()) / len(risk_intelligence))
+
     if state == "Recovery":
         score = _clamp_pct(score - 12)
     elif state == "Baseline":
         score = _clamp_pct(score + 0)
     elif state == "Strain":
         score = _clamp_pct(score + 12)
+
     if state_duration is not None:
         score = _clamp_pct(score + max(0, state_duration - 1) * 2.5)
     if state_confidence is not None:
         score = _clamp_pct(score + max(0.0, float(state_confidence) - 0.5) * 10.0)
     if early_warning["triggered"]:
         score = _clamp_pct(score + 6.0)
-    if clinical_escalation["advisory_level"] == "Clinical Advisory":
+    if clinical_escalation["advisory_level"] == "Strain Advisory":
         score = _clamp_pct(score + 10.0)
+
     return {
         "score": round(score, 1),
         "level": _risk_level(score),
@@ -197,7 +239,6 @@ def calculate_risk_score(features: pd.DataFrame | pd.Series | dict[str, Any], st
         "early_warning": early_warning,
         "clinical_escalation": clinical_escalation,
         "recommendation_context": {key: round(value, 2) for key, value in recommendation_context.items()},
-        "environment_impact": None,
         "multi_risk": {item["label"]: item["score"] for item in risk_intelligence.values()},
         "risk_intelligence": risk_intelligence,
     }
@@ -206,7 +247,10 @@ def calculate_risk_score(features: pd.DataFrame | pd.Series | dict[str, Any], st
 def build_user_state_summary(state_distribution: pd.Series | dict[str, Any] | None) -> dict[str, Any]:
     if state_distribution is None:
         return {"distribution": {}, "summary_lines": []}
-    distribution = {str(key): float(value) for key, value in (state_distribution.to_dict().items() if isinstance(state_distribution, pd.Series) else dict(state_distribution).items())}
+    distribution = {
+        str(key): float(value)
+        for key, value in (state_distribution.to_dict().items() if isinstance(state_distribution, pd.Series) else dict(state_distribution).items())
+    }
     ordered_distribution = {key: round(value, 2) for key, value in sorted(distribution.items(), key=lambda item: item[1], reverse=True)}
     summary_lines = [f"User spent {value:.1f}% time in {key}." for key, value in ordered_distribution.items()]
     return {"distribution": ordered_distribution, "summary_lines": summary_lines}

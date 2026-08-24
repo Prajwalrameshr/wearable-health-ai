@@ -9,6 +9,7 @@ import pandas as pd
 
 from run_inference import compute_state, load_model_outputs
 from src.cohort_benchmarks import benchmark_against_cohort
+from src.environment import DEFAULT_ENVIRONMENT, get_environment
 from src.preprocessing import preprocess_for_modeling
 from src.recommendation_engine import generate_recommendations
 from src.risk_scoring import calculate_risk_score, evaluate_clinical_persistence
@@ -17,6 +18,7 @@ app = Flask(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = BASE_DIR / "data" / "wearables_health_6mo_daily.csv"
+DEFAULT_CITY = "Bangalore"
 
 
 def _process_android_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -33,6 +35,7 @@ def _process_android_payload(payload: dict[str, Any]) -> dict[str, Any]:
     else:
         record_date = datetime.now().strftime("%Y-%m-%d")
 
+    city = str(payload.get("city") or DEFAULT_CITY)
     model_type = str(payload.get("model_type") or "gmm").lower()
 
     # Load baseline dataset
@@ -68,7 +71,8 @@ def _process_android_payload(payload: dict[str, Any]) -> dict[str, Any]:
     feature_df = outputs["feature_df"].copy()
     feature_df, cluster_out, hmm_bundle = load_model_outputs(feature_df, model_type=model_type)
 
-    final_results_df, analysis = compute_state(model_type, hmm_bundle["labeled_df"], hmm_bundle, {}, cluster_out)
+    env_context = get_environment(city)
+    final_results_df, analysis = compute_state(model_type, hmm_bundle["labeled_df"], hmm_bundle, env_context, cluster_out)
 
     # Add recommendations
     recommendations = generate_recommendations(analysis)
@@ -95,8 +99,8 @@ def _process_android_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "recommendations": recommendations,
         "cohortBenchmarks": cohort,
         "multiRisk": analysis.get("multi_risk", {}),
+        "environment": env_context,
     }
-
 
 
 @app.route("/", methods=["GET"])

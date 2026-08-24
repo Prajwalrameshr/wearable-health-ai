@@ -1,0 +1,13 @@
+experiment,condition,model,mean_silhouette,std_silhouette,ci95_silhouette_lower,ci95_silhouette_upper,mean_calinski_harabasz,mean_davies_bouldin,mean_log_likelihood,mean_recovery_occ_pct,mean_baseline_occ_pct,mean_strain_occ_pct
+Exp1_Synth_to_Synth,Synthetic_Baseline,GMM,0.1681,0.0019,0.1654,0.1698,2756.16,1.8481,-8.7826,43.82,28.65,27.54
+Exp1_Synth_to_Synth,Synthetic_Baseline,KMeans,0.1807,0.0026,0.1773,0.1836,2888.72,1.767,0.0,44.68,28.32,26.99
+Exp1_Synth_to_Synth,Synthetic_Baseline,Severity_Tercile,0.0287,0.0015,0.0268,0.0303,708.73,4.4647,0.0,33.34,33.32,33.34
+Exp2_Real_to_Real,Real_Only_Baseline,GMM,0.2168,0.0078,0.2051,0.2242,313.72,1.5369,-8.1297,42.18,30.5,27.32
+Exp2_Real_to_Real,Real_Only_Baseline,KMeans,0.2308,0.0065,0.2209,0.2358,326.02,1.4739,0.0,46.05,30.59,23.36
+Exp2_Real_to_Real,Real_Only_Baseline,Severity_Tercile,0.0313,0.0051,0.0248,0.0364,54.87,4.1852,0.0,33.37,33.41,33.22
+Exp3_Synth_to_Real,ZeroShot_Transfer,GMM,0.2117,0.0098,0.198,0.2194,283.07,1.5542,-9.0661,42.33,31.0,26.66
+Exp3_Synth_to_Real,ZeroShot_Transfer,KMeans,0.22,0.0075,0.2086,0.225,292.85,1.518,0.0,40.87,32.41,26.72
+Exp3_Synth_to_Real,ZeroShot_Transfer,Severity_Tercile,0.0312,0.0029,0.0271,0.0346,71.7,3.6801,0.0,32.04,27.81,40.15
+Exp4_Synth_Plus_Real_to_Real,Ratio_1:1,GMM,0.2127,0.0089,0.2003,0.2198,290.68,1.5517,-8.7187,42.65,30.92,26.43
+Exp4_Synth_Plus_Real_to_Real,Ratio_2:1,GMM,0.2122,0.0093,0.1988,0.2195,287.42,1.553,-8.8624,42.42,30.9,26.68
+Exp4_Synth_Plus_Real_to_Real,Ratio_4:1,GMM,0.2118,0.0096,0.1984,0.219,285.56,1.5545,-8.9458,42.3,31.01,26.68

@@ -1,0 +1,24 @@
+existing_synthetic_feature,real_fitbit_feature,semantic_match,unit_match,transformation,compatible,decision,missing_rate_synthetic,missing_rate_real,classification
+user_id,id,Yes,Yes,Rename id -> user_id,Yes,KEEP (Core Space),0.0%,0.0%,Category A (Directly compatible)
+date,date,Yes,Yes,Parse to ISO YYYY-MM-DD,Yes,KEEP (Core Space),0.0%,0.0%,Category A (Directly compatible)
+resting_hr_bpm,resting_hr,Yes,Yes,Rename resting_hr -> resting_hr_bpm,Yes,KEEP (Core Space),0.0%,40.32%,Category A (Directly compatible)
+avg_hr_day_bpm,bpm,Yes,Yes,Rename bpm -> avg_hr_day_bpm,Yes,KEEP (Core Space),1.91%,35.17%,Category B (Compatible after transformation)
+steps,steps,Yes,Yes,Numeric typecast,Yes,KEEP (Core Space),1.91%,35.53%,Category A (Directly compatible)
+distance_km,distance,Yes,No,Divide real distance by 1000.0 (meters -> km),Yes,KEEP (Core Space),1.91%,35.53%,Category B (Compatible after transformation)
+calories_kcal,calories,Yes,Yes,Rename calories -> calories_kcal,Yes,KEEP (Core Space),1.91%,10.12%,Category A (Directly compatible)
+sleep_duration_hours,sleep_duration,Yes,No,Divide real sleep_duration by 3.6e6 (ms -> hours),Yes,KEEP (Core Space),1.91%,52.08%,Category B (Compatible after transformation)
+sleep_efficiency,sleep_efficiency,Yes,Yes,Numeric typecast,Yes,KEEP (Core Space),1.91%,52.08%,Category A (Directly compatible)
+sleep_latency_min,minutesToFallAsleep,Yes,Yes,Rename minutesToFallAsleep -> sleep_latency_min,Yes,KEEP (Core Space),1.91%,52.08%,Category B (Compatible after transformation)
+wake_after_sleep_onset_min,minutesAwake + minutesAfterWakeup,Yes,Yes,Sum minutesAwake + minutesAfterWakeup,Yes,KEEP (Core Space),1.91%,0.0%,Category B (Compatible after transformation)
+hrv_rmssd_ms,rmssd,Yes,Yes,Rename rmssd -> hrv_rmssd_ms,Yes,TIER 2 ONLY (Nocturnal Sub-Cohort),1.91%,66.60%,Category A (High missingness; Nocturnal Tier 2 only)
+spo2_avg_pct,spo2,Yes,Yes,Rename spo2 -> spo2_avg_pct,Yes,TIER 2 ONLY (Nocturnal Sub-Cohort),0.0%,82.86%,Category A (High missingness; Nocturnal Tier 2 only)
+age,age,Approximate,No,Preserve as binned demographic string,Yes,KEEP (Metadata),0.0%,8.29%,Contextual Metadata
+gender,gender,Yes,Yes,Lowercase string normalization ('male'/'female'),Yes,KEEP (Metadata),0.0%,4.99%,Contextual Metadata
+bmi,bmi,Approximate,No,Preserve as binned demographic string,Yes,KEEP (Metadata),0.0%,8.29%,Contextual Metadata
+sbp_mmHg,None,No,No,Exclude from common ML space,No,DROP,0.0%,100.0%,Category D (Synthetic-only)
+dbp_mmHg,None,No,No,Exclude from common ML space,No,DROP,0.0%,100.0%,Category D (Synthetic-only)
+caffeine_mg,None,No,No,Exclude from common ML space,No,DROP,1.91%,100.0%,Category D (Synthetic-only)
+alcohol_units,None,No,No,Exclude from common ML space,No,DROP,1.91%,100.0%,Category D (Synthetic-only)
+screen_time_min,None,No,No,Exclude from common ML space,No,DROP,1.91%,100.0%,Category D (Synthetic-only)
+mindfulness_minutes,mindfulness_session,Approximate,No,Exclude from common ML space,No,DROP,0.0%,4.04%,Category C (Approximate proxy)
+stress_score,stress_score,Partial,Unclear,Retain for evaluation/EDA only (NOT ML target),Yes,KEEP (EDA/Eval Only),0.0%,35.17%,Evaluation Metric / Context

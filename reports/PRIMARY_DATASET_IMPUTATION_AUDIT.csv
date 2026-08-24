@@ -1,0 +1,7 @@
+feature,total_rows,raw_observed_cnt,raw_observed_pct,causal_ffill_cnt,causal_ffill_pct,user_mean_cnt,user_mean_pct,cohort_mean_cnt,cohort_mean_pct
+resting_hr_bpm,4159,3834,92.19%,325,7.81%,0,0.00%,0,0.00%
+avg_hr_day_bpm,4159,3970,95.46%,189,4.54%,0,0.00%,0,0.00%
+steps,4159,3976,95.60%,183,4.40%,0,0.00%,0,0.00%
+distance_km,4159,3976,95.60%,183,4.40%,0,0.00%,0,0.00%
+calories_kcal,4159,4126,99.21%,33,0.79%,0,0.00%,0,0.00%
+sleep_duration_hours,4159,3542,85.16%,617,14.84%,0,0.00%,0,0.00%

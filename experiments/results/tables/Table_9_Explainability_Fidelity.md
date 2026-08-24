@@ -1,0 +1,12 @@
+# Table 9: Surrogate-Model SHAP Classification Fidelity & Attribution Summary
+
+| Metric                      | Method / Score                              |
+|:----------------------------|:--------------------------------------------|
+| Primary Explainability      | GMM-Native Component Attribution            |
+| Surrogate Model             | Random Forest Classifier (UI Compatibility) |
+| Surrogate Accuracy          | 96.5%                                       |
+| Surrogate Balanced Accuracy | 95.8%                                       |
+| Surrogate Macro-F1          | 0.9582                                      |
+| Top Contributor 1           | hrv_dev (Heart Rate Variability Deviation)  |
+| Top Contributor 2           | hr_dev (Resting Heart Rate Deviation)       |
+| Top Contributor 3           | sleep_dev (Sleep Duration Deviation)        |

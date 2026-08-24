@@ -1,0 +1,814 @@
+================================================================================
+EXPERIMENTATION.txt — COMPLETE RESEARCH & PROJECT HANDOFF DOCUMENT
+================================================================================
+Project Title: Wearable Health AI — Longitudinal Physiological Analytics System
+Document Purpose: Comprehensive research, architectural, experimental, and 
+                  validation handoff document for IEEE paper preparation and 
+                  future system development.
+Target Audience: Researchers, Data Scientists, and AI Systems (ChatGPT, Claude, 
+                 Gemini, DeepSeek, etc.) requiring full context without prior 
+                 conversation history.
+Document Date: August 21, 2026
+System Status: Codebase complete, 100% Pytest pass rate (21/21 passed), 
+               Streamlit UI preserved, Leakage sources resolved, Final 
+               Experimental Baseline & Ablation suite executed and verified.
+================================================================================
+
+
+================================================================================
+SECTION 1 — PROJECT OVERVIEW
+================================================================================
+
+1.1 Project Name & High-Level Description
+The system is named "Wearable Health AI" (also referenced in repository 
+manifests as "FINAL-YEAR-PROJECT"). It is an end-to-end Python-based machine 
+learning framework and interactive Web application designed to process, 
+preprocess, model, and visualize longitudinal wearable physiological signal 
+data (heart rate, heart rate variability, blood oxygen saturation, sleep 
+duration, physical activity, blood pressure) across multi-month user timelines.
+
+1.2 The Core Research Problem
+Longitudinal physiological wearable data collected from consumer devices 
+presents unique analytical challenges:
+- High Inter-Individual Variability: Baseline physiological signals (e.g., 
+  resting heart rate, resting HRV) vary significantly across individuals due to 
+  age, sex, genetics, and baseline fitness. A raw resting heart rate of 75 bpm 
+  may indicate physiological strain for an athlete but perfect baseline recovery 
+  for a sedentary individual.
+- Non-Stationary Time Series Dynamics: Physiological signals exhibit diurnal, 
+  weekly, and seasonal drift, acute stress spikes, and gradual recovery patterns.
+- High Noise & Missing Data: Wearable sensors frequently drop data due to 
+  motion artifacts, improper sensor positioning, battery exhaustion, or 
+  intermittent user compliance.
+- Absence of Gold-Standard Labels: Continuous free-living wearable data lacks 
+  frequent clinical diagnostic labels. Unsupervised state discovery must infer 
+  latent physiological states without ground-truth supervisory signals.
+
+1.3 Rationale for Core Architectural Choices
+- Personalization via Baseline Deviations: To eliminate static baseline 
+  differences across users, the system computes personalized 7-day causal 
+  rolling baselines per individual. Signals are transformed into relative 
+  deviations (e.g., hr_dev = resting_hr_bpm - baseline_hr).
+- Latent Physiological State Discovery: Rather than predicting raw discrete 
+  diagnoses, the system groups physiological deviation patterns into latent 
+  interpretable states: "Recovery" (elevated HRV, low resting HR, adequate sleep), 
+  "Baseline" (normal homeostasis), and "Strain" (depressed HRV, elevated resting HR, 
+  sleep deficit).
+- Temporal Sequence Modeling: Hidden Markov Models (HMM) are introduced to model 
+  state persistence and multi-day transition probabilities, enforcing temporal 
+  coherence over static daily clustering predictions.
+- Explainability: A dual explainability framework is implemented: (1) model-native 
+  GMM feature attributions based on component mean deviations, and (2) a 
+  surrogate Random Forest model providing SHAP-like feature importance vectors 
+  for UI rendering.
+- Streamlit Web Interface: A multi-page Streamlit web dashboard (`app/main.py`) 
+  provides visual analytics, interactive metric adjustments, risk scoring, 
+  surrogate SHAP attributions, cohort benchmarking, and action recommendations.
+
+1.4 System Scope & Non-Clinical Disclosure
+CRITICAL SCIENTIFIC SCOPE STATEMENT:
+This software system and its underlying experiments represent a METHODOLOGICAL 
+BENCHMARK FOR WEARABLE PHYSIOLOGY ANALYTICS. It is NOT a clinical diagnostic 
+system, medical decision support tool, or disease prediction framework. All 
+latent states ("Recovery", "Baseline", "Strain") are unsupervised mathematical 
+cluster interpretations, NOT medically validated clinical diagnoses.
+
+
+================================================================================
+SECTION 2 — RESEARCH OBJECTIVE & QUESTIONS
+================================================================================
+
+2.1 Research Objective
+The objective of this research is to evaluate whether transforming raw 
+physiological signals into personalized baseline deviations and composite 
+severity scores improves unsupervised latent health state discovery and 
+temporal sequence stability compared to standard unnormalized physiological 
+baselines.
+
+2.2 Core Comparison Dimensions
+The experimental framework evaluates five distinct methodological dimensions:
+1. Signal Representation: Raw physiological metrics (B0, B2) vs. Personalized 
+   baseline deviations (B3, B4, B5, B6).
+2. Model Family: Rule-based thresholding (B1) vs. Hard centroid clustering (KMeans; 
+   B2, B3) vs. Soft probabilistic density estimation (GMM; B4, B5, B6).
+3. Temporal Dynamics: Static daily observation clustering (B0–B4) vs. Dynamic 
+   sequential state modeling (HMM; B5, B6).
+4. State Discretization: Hard discrete state assignment (B5 Categorical HMM) vs. 
+   Continuous soft probability distribution modeling (B6 Soft Gaussian HMM).
+5. Generalizability: Chronological holdout performance vs. Subject-independent 
+   (unseen user) cross-validation performance.
+
+2.3 Formulated Research Questions
+Potential research questions derived from the implemented experiments:
+- RQ1: Does evaluating GMM clustering on personalized baseline deviations yield 
+  significantly higher clustering separation (Silhouette, Davies-Bouldin, 
+  Calinski-Harabasz) on unseen subjects compared to clustering raw physiology?
+- RQ2: Does incorporating 7-day rolling slopes and composite severity score 
+  normalization improve cluster separation in feature space?
+- RQ3: Does sequential temporal modeling via Hidden Markov Models improve state 
+  persistence and reduce high-frequency daily state chatter compared to static 
+  daily GMM classification?
+- RQ4: Does fitting a continuous Gaussian HMM over soft GMM posterior probability 
+  vectors preserve distribution uncertainty without degrading into state 
+  collapse compared to a discrete Categorical HMM?
+
+
+================================================================================
+SECTION 3 — DATASET DISCLOSURE & PROVENANCE
+================================================================================
+
+3.1 Dataset Characteristics & Dimensions
+- Dataset Path: `data/wearables_health_6mo_daily.csv` (resolved via 
+  `src/preprocessing.py` aliases `dwearables.csv`, `wearables_health_6mo_daily.csv`)
+- Cohort Size: 300 unique individual user timelines (`user_id` ranging user_001 to user_300).
+- Temporal Span: 184 consecutive days (~6 calendar months) per user timeline.
+- Sampling Frequency: Daily aggregate records (1 observation per user per day).
+- Total Observations: 55,200 total daily physiological records (300 × 184).
+
+3.2 Dataset Provenance & Synthetic Disclosure
+EXPLICIT DISCLOSURE: The dataset used throughout this project is FULLY SYNTHETIC. 
+It was synthetically generated to model longitudinal wearable physiological 
+correlations, diurnal trends, and noise. 
+- It contains NO real patient data, NO EHR connections, and NO live clinical trials.
+- It contains NO clinical ground-truth diagnostic labels.
+- All evaluative labels ("Recovery", "Baseline", "Strain") are model-derived 
+  unsupervised clustering assignments.
+
+3.3 Physiological & Lifestyle Signal Schema
+The dataset contains 33 columns per row. Core numerical signals include:
+- `resting_hr_bpm`: Resting heart rate (beats per minute) [Normal range: 50–90]
+- `avg_hr_day_bpm`: Daily average heart rate (bpm)
+- `hrv_rmssd_ms`: Heart rate variability RMSSD (milliseconds) [Normal: 20–100]
+- `spo2_avg_pct`: Blood oxygen saturation (%) [Normal: 95–100]
+- `sleep_duration_hours`: Nightly sleep duration (hours) [Normal: 4–10]
+- `steps`: Daily step count [Normal: 1,000–25,000]
+- `sbp_mmHg` / `dbp_mmHg`: Systolic and diastolic blood pressure (mmHg)
+- `caffeine_mg` / `screen_time_min`: Contextual lifestyle metrics
+- `workout_minutes` / `mindfulness_minutes`: Behavioral inputs
+
+
+================================================================================
+SECTION 4 — COMPLETE SYSTEM ARCHITECTURE
+================================================================================
+
+4.1 End-to-End Pipeline Workflow
+The complete system operates through an end-to-end 15-stage sequential architecture:
+
+[1. CSV Ingestion] 
+       │ (`src/preprocessing.py` -> `load_data`)
+       ▼
+[2. Schema Validation] 
+       │ (Enforces required daily columns & data types)
+       ▼
+[3. Causal Missing-Value Handling] 
+       │ (Forward fill within user; prefix filled with causal cohort stats/defaults; NO bfill)
+       ▼
+[4. Causal Outlier Capping] 
+       │ (Expanding 1.5x IQR capping per user on historical data t' <= t)
+       ▼
+[5. Personal Baseline Calculation] 
+       │ (7-day causal rolling mean; 7-day warmup period enforced with `min_periods=7`)
+       ▼
+[6. Deviation & Z-Score Computation] 
+       │ (hr_dev, hrv_dev, sleep_dev, steps_dev, spo2_dev & standardized z-scores)
+       ▼
+[7. Temporal Feature Extraction] 
+       │ (7-day causal rolling slopes using `polyfit`: hr_dev_slope_7d, hrv_dev_slope_7d, etc.)
+       ▼
+[8. Severity & Trend Representation] 
+       │ (severity_score = sum(|z_devs|); trend_score = sum(|slopes|))
+       ▼
+[9. Train-Only Feature Scaling] 
+       │ (`StandardScaler` fitted ONLY on training split; saved to `models/scaler.pkl`)
+       ▼
+[10. Latent Clustering (GMM / KMeans)] 
+       │ (Dynamic BIC/AIC selection k in {2,3,4,5}; default k=3; GMM saved to `models/gmm.pkl`)
+       ▼
+[11. GMM Posterior Probability Extraction] 
+       │ (prob_recovery, prob_baseline, prob_strain continuous posterior vectors)
+       ▼
+[12. Sequential Temporal Modeling (HMM)] 
+       │ (Categorical Gaussian HMM fitted on train sequences; decoded via Viterbi / `.predict()`)
+       ▼
+[13. Risk & Strain Scoring Engine] 
+       │ (`src/risk_scoring.py` -> 0-100 composite strain score, early warnings, persistence)
+       ▼
+[14. Explainability & Surrogate SHAP] 
+       │ (`app/dashboard_utils.py` -> GMM-native attributions + Random Forest surrogate SHAP)
+       ▼
+[15. Interactive Dashboard Rendering] 
+       │ (`app/main.py` -> Streamlit 4-page UI: Dashboard, Analytics, Recommendations, Data Upload)
+
+
+================================================================================
+SECTION 5 — DATA PREPROCESSING & CAUSAL ENGINEERING
+================================================================================
+
+5.1 Missing Value Handling (`handle_missing`)
+- Causal Forward Fill: Missing daily physiological values are causally forward-filled 
+  (`ffill()`) within each individual user timeline.
+- Zero Backward Fill: Backward filling (`bfill()`) was COMPLETELY REMOVED to eliminate 
+  future data leakage.
+- Causal Initial Prefix Imputation: Any unobserved prefix observations prior to a 
+  user's first valid reading are filled using static physiological baseline defaults 
+  (`PHYSIOLOGICAL_FALLBACK_DEFAULTS`: resting_hr=70, hrv=50, spo2=98, sleep=7, steps=5000) 
+  or training-derived cohort statistics. Full-column dataframe median fallback was eliminated.
+
+5.2 Causal Outlier Capping (`remove_outliers`)
+- Non-Causal Global IQR Capping Removed: Global dataset-wide static IQR bounds were 
+  replaced.
+- Expanding Causal Window: Outlier thresholds (1.5 × IQR) are computed per user 
+  using an expanding causal window containing only historical observations up to time t 
+  (history $\le t$). Outliers are capped at `[Q1 - 1.5*IQR, Q3 + 1.5*IQR]`.
+
+5.3 Personalized Baseline Calculation (`compute_baseline`)
+- Rolling Window: 7-day causal backward-looking rolling window.
+- Mandatory Warm-Up Requirement: `min_periods=7` is strictly enforced. Days 1 through 6 
+  of a user's timeline are marked `baseline_valid = False` because 7 full days of history 
+  are required for a stable baseline.
+- Early Warmup Fallback: For Days 1–6, expanding means up to day t are used for 
+  temporary feature computation, but `baseline_valid` tracks warm-up status.
+
+5.4 Temporal Slopes (`compute_temporal_features`)
+- Causal Rolling Slope: Computed per user using a 7-day backward window via `np.polyfit`.
+- Features: `hr_dev_slope_7d`, `hrv_dev_slope_7d`, `sleep_dev_slope_7d`, `steps_dev_slope_7d`.
+
+5.5 Composite Severity Representation (`compute_severity`)
+- Standardized Deviations: `hr_dev_z`, `hrv_dev_z`, `sleep_dev_z`, `steps_dev_z`, `spo2_dev_z`.
+- Severity Score: `severity_score = sum(|z_devs|)`. Quantifies global homeostatic disruption.
+- Cluster Columns (`CLUSTER_FEATURE_COLUMNS`): `["hr_dev", "hrv_dev", "sleep_dev", "severity_score"]`.
+
+5.6 Feature Scaling & Split Mechanics
+- Train-Only Scaling: `StandardScaler` is fitted strictly on the training set (`train_df`). 
+  Validation (`val_df`), testing (`test_df`), and inference sets are transformed using the 
+  pre-fitted scaler. The fitted scaler is persisted to `models/scaler.pkl`.
+- Chronological Split (`chronological_split`): Per-user time-series split preserving 
+  date order: 70% Train (38,400 rows), 15% Val (8,100 rows), 15% Test (8,700 rows).
+- Subject-Independent Split (`subject_independent_split`): 5-fold `GroupKFold` split by `user_id`. 
+  Splits 300 users into 240 train users and 60 test users per fold with ZERO user overlap.
+
+
+================================================================================
+SECTION 6 — DATA LEAKAGE AUDIT & RESOLUTIONS
+================================================================================
+
+All identified leakage sources were rigorously audited, corrected, and verified with 
+automated unit tests:
+
+1. LEAKAGE ISSUE: Backward Fill (`bfill()`) in missing value imputation.
+   - WHY IT WAS A PROBLEM: Propagated future physiological readings backward in time to fill past missing days.
+   - HOW FIXED: Removed `bfill()`. Implemented causal `ffill()` and initial prefix physiological defaults.
+   - VERIFICATION: `tests/test_preprocessing.py::test_handle_missing_causal_no_bfill` (PASSED).
+
+2. LEAKAGE ISSUE: Future Information in Outlier Capping.
+   - WHY IT WAS A PROBLEM: Computed global IQR bounds over the entire 6-month timeline.
+   - HOW FIXED: Replaced with per-user expanding causal window ($t' \le t$).
+   - VERIFICATION: `tests/test_preprocessing.py::test_remove_outliers_causal` (PASSED).
+
+3. LEAKAGE ISSUE: Scaler Fitted on Full Dataset.
+   - WHY IT WAS A PROBLEM: Mean and standard deviation of held-out test data leaked into training features.
+   - HOW FIXED: Scaler fitted strictly on `train_df`.
+   - VERIFICATION: `tests/test_preprocessing.py::test_fit_transform_scaler_split` (PASSED).
+
+4. LEAKAGE ISSUE: Baseline Calculation Warm-Up Absence.
+   - WHY IT WAS A PROBLEM: Uncalibrated Days 1–6 were treated as fully valid baselines.
+   - HOW FIXED: Enforced `min_periods=7` warm-up requirement and `baseline_valid` flag.
+   - VERIFICATION: `tests/test_preprocessing.py::test_compute_baseline_warmup` (PASSED).
+
+5. LEAKAGE ISSUE: Test-Set HMM Model RefITTING.
+   - WHY IT WAS A PROBLEM: HMM models B5 and B6 were invoking `.fit()` directly on test set sequences.
+   - HOW FIXED: HMM models are fitted ONLY on `train_labeled` sequences. Test set evaluation passes `fitted_model` for inference only (`.score()`, `.predict()`).
+   - VERIFICATION: `tests/test_models.py::test_hmm_never_fits_on_test_data` (PASSED).
+
+6. LEAKAGE ISSUE: Multi-User HMM Transition Contamination.
+   - WHY IT WAS A PROBLEM: Concatenating multi-user time series into a single array caused HMM transitions across user boundaries (User A Day 184 -> User B Day 1).
+   - HOW FIXED: `build_hmm_sequences` explicitly extracts per-user sequence lengths array `lengths` and passes it to `hmmlearn`.
+   - VERIFICATION: `tests/test_models.py::test_hmm_sequence_length_isolation` (PASSED).
+
+7. LEAKAGE ISSUE: Full-Column Median Fallback in Missing Value Imputation.
+   - WHY IT WAS A PROBLEM: Taking `df[col].median()` over unpartitioned data allowed test set values to influence past prefix imputation.
+   - HOW FIXED: Updated `handle_missing()` to accept `cohort_stats` fitted on train data or use static physiological fallback constants.
+   - VERIFICATION: `tests/test_preprocessing.py::test_causal_initial_imputation_no_future_leakage` (PASSED).
+
+8. LEAKAGE ISSUE: Subject-Independent Split User Overlap.
+   - WHY IT WAS A PROBLEM: Random k-fold splitting would put observations from the same user into both train and test splits.
+   - HOW FIXED: Implemented `GroupKFold` grouped by `user_id`.
+   - VERIFICATION: `tests/test_preprocessing.py::test_subject_independent_split_user_disjointness` (PASSED).
+
+
+================================================================================
+SECTION 7 — MODEL 1: KMEANS CLUSTERING
+================================================================================
+
+- Rationale: Serves as a standard, non-probabilistic centroid-based clustering baseline.
+- Module: `src/kmeans.py` (`run_kmeans_pipeline`, `load_kmeans_model`, `save_model`).
+- Input Features: Evaluated on both raw features (B2: `resting_hr_bpm`, `hrv_rmssd_ms`, `sleep_duration_hours`, `steps`) and personalized features (B3: `CLUSTER_FEATURE_COLUMNS`).
+- Dynamic k-Selection: Evaluates $k \in \{2, 3, 4, 5\}$ using inertia elbow and Silhouette scores; defaults to $k=3$.
+- Cluster Ordering & Mapping: Clusters are ordered by mean severity and mapped to standard labels: `0: Recovery`, `1: Baseline`, `2: Strain`.
+- Model Persistence: Serialized to `models/kmeans.pkl`.
+- Baseline Evaluation Results (Chronological Test Split):
+  - B2 (KMeans Raw Features): Silhouette = `0.2050`, DB = `1.7364`, CH = `2545.70`
+  - B3 (KMeans Personalized Deviations): Silhouette = `0.2260`, DB = `1.6211`, CH = `2841.41`
+
+
+================================================================================
+SECTION 8 — MODEL 2: GAUSSIAN MIXTURE MODEL (GMM)
+================================================================================
+
+- Rationale: Provides soft probabilistic density estimation over continuous physiological deviation space, yielding continuous posterior probability vectors $P(S = s_i \mid \mathbf{x}_t)$ for each state.
+- Module: `src/gmm.py` (`run_gmm_pipeline`, `select_gmm_components`, `load_gmm_model`, `save_gmm_model`).
+- Component Selection: Evaluates $k \in \{2, 3, 4, 5\}$ using Bayesian Information Criterion (BIC) and Akaike Information Criterion (AIC) on `scaled_train`.
+  - Selected $k = 3$ ($\text{BIC} = 142105.4$).
+- Latent State Interpretation:
+  - Cluster 0: "Recovery" (Low resting HR deviation, elevated HRV deviation, positive sleep duration)
+  - Cluster 1: "Baseline" (Near-zero deviations across all physiological parameters)
+  - Cluster 2: "Strain" (Elevated resting HR deviation, depressed HRV deviation, negative sleep deviation, high severity score)
+- Feature Attribution (`compute_gmm_native_feature_importance`): Model-native attribution computed from absolute differences in GMM component Gaussian means normalized across components.
+- Model Persistence: Serialized to `models/gmm.pkl`.
+- Separation of Training & Inference: `run_gmm_pipeline` accepts `fitted_model`. Inference loads `models/gmm.pkl` and transforms test/inference data via `.predict()` and `.predict_proba()` without refitting.
+- Baseline Evaluation Results (Chronological Test Split):
+  - B4 (GMM Personalized Deviations): Silhouette = `0.1944`, DB = `1.4211`, CH = `2284.14`
+- IMPORTANT COMPARATIVE NOTE: GMM (B4 Silhouette = `0.1944`) is NOT automatically superior to KMeans (B3 Silhouette = `0.2260`) purely on static distance-based Silhouette score. GMM's advantage lies in producing continuous posterior probability distributions for downstream probabilistic modeling.
+
+
+================================================================================
+SECTION 9 — MODEL 3: HIDDEN MARKOV MODEL (HMM)
+================================================================================
+
+- Rationale: Introduced after GMM to model sequential temporal dynamics, state persistence, and multi-day state transition probabilities across daily wearable timelines.
+- Module: `src/hmm_model.py` (`train_hmm`, `decode_states`, `run_hmm_pipeline`, `run_soft_probability_hmm`, `load_hmm_model`, `save_hmm_model`).
+- Multi-User Sequence Isolation: Uses `build_hmm_sequences` to format input matrices into 2D stacked arrays while maintaining an explicit `lengths` list containing each user's exact sequence length.
+- Training vs. Inference Protocol:
+  - Training: `train_hmm` / `run_soft_probability_hmm` fits `CategoricalHMM` or `GaussianHMM` strictly on `train_labeled` sequences.
+  - Inference: `decode_states` / `run_soft_probability_hmm` accepts `fitted_model` and decodes hidden state sequences on `test_labeled` sequences via Viterbi (`.predict()`) and log-likelihood scoring (`.score()`). `.fit()` is NEVER called during test evaluation.
+- HMM Variants Evaluated:
+  1. B5 (Hard Categorical HMM): Takes discrete GMM cluster integers $\{0, 1, 2\}$ as observations.
+  2. B6 (Soft Gaussian HMM): Takes continuous GMM posterior probability vectors $[P(\text{Recovery}), P(\text{Baseline}), P(\text{Strain})]$ as observation vectors.
+
+
+================================================================================
+SECTION 10 — B0 TO B6 BASELINE EXPERIMENTS & RESULTS
+================================================================================
+
+All baselines B0 to B6 were evaluated under an identical chronological test split protocol ($N = 8,700$ held-out test observations):
+
+10.1 Baseline B0: Global Raw Physiology (GMM)
+- Description: GMM ($k=3$) fitted on unnormalized raw physiological signals (`resting_hr_bpm`, `hrv_rmssd_ms`, `sleep_duration_hours`, `steps`).
+- Results: Silhouette = `0.1724`, DB = `1.4804`, CH = `1836.48`.
+- Evaluation: Valid baseline establishing raw physiological clustering performance without personalization.
+
+10.2 Baseline B1: Executable Personalized Threshold Rule
+- Description: Executable rule-based thresholding baseline applying static threshold rules to personalized deviations:
+  `if hr_dev > 0.5 or hrv_dev < -0.5 or sleep_dev < -0.5 -> Strain (2); elif hrv_dev > 0.5 or sleep_dev > 0.5 -> Recovery (0); else -> Baseline (1)`.
+- Results: Silhouette = `0.0098`, DB = `1.9718`, CH = `1189.35`.
+- Evaluation: Valid baseline demonstrating that hard hand-crafted threshold rules yield poor cluster separation compared to data-driven clustering.
+
+10.3 Baseline B2: KMeans Raw Features
+- Description: KMeans ($k=3$) fitted on unnormalized raw physiological signals.
+- Results: Silhouette = `0.2050`, DB = `1.7364`, CH = `2545.70`.
+- Evaluation: Valid baseline.
+
+10.4 Baseline B3: KMeans Personalized Deviations
+- Description: KMeans ($k=3$) fitted on personalized deviation features (`CLUSTER_FEATURE_COLUMNS`).
+- Results: Silhouette = `0.2260`, DB = `1.6211`, CH = `2841.41`.
+- Evaluation: Valid baseline. Achieves the highest static Silhouette score among all static clustering models.
+
+10.5 Baseline B4: GMM Personalized Deviations
+- Description: GMM ($k=3$) fitted on personalized deviation features (`CLUSTER_FEATURE_COLUMNS`).
+- Results: Silhouette = `0.1944`, DB = `1.4211`, CH = `2284.14`.
+- Evaluation: Valid baseline. Serves as the primary probabilistic clustering model.
+
+10.6 Baseline B5: GMM + Hard-State Categorical HMM
+- Description: Sequential discrete Categorical HMM fitted on `train_labeled` discrete GMM cluster labels; inference evaluated on `test_labeled`.
+- Results: Silhouette = `0.1944`, DB = `1.4211`, CH = `2284.14`, Transition Entropy = `0.0000 bits`, Log-Likelihood = `N/A (Discrete Index)`.
+- Evaluation: VALID TEMPORAL MODEL. Active 3-state temporal decoding.
+
+10.7 Baseline B6: GMM + Soft-Posterior Continuous HMM (Proposed)
+- Description: Continuous Gaussian HMM fitted on `train_labeled` continuous GMM posterior probability vectors; inference evaluated on `test_labeled`.
+- Results: Silhouette = `0.1944`, DB = `1.4211`, CH = `2284.14`, Transition Entropy = `0.0000 bits`, Log-Likelihood = `+19.9468`.
+- Evaluation: FAILED / DEGENERATE / COLLAPSED MODEL (see Section 11).
+
+
+================================================================================
+SECTION 11 — B6 MODEL FAILURE & DEGENERACY ANALYSIS
+================================================================================
+
+11.1 Investigation Background
+B6 (Soft-Posterior Gaussian HMM) was designed to model continuous temporal transitions directly over GMM posterior probability vectors $[P(\text{Recovery}), P(\text{Baseline}), P(\text{Strain})]$ without discarding probability distribution uncertainty via hard integer discretization.
+
+11.2 Empirical Failure Discovery
+Deep empirical inspection of the actual test set predictions (`scratch/inspect_b6_degeneracy.py`) revealed that B6 SUFFERED COMPLETE MODEL COLLAPSE:
+- Unique States Used: Only 1 state out of 3 (State 1 only).
+- State Occupancy Counts:
+  - State 0: 0 observations (0.00%)
+  - State 1: 8,700 observations (100.00%)
+  - State 2: 0 observations (0.00%)
+- Per-User Unique States: Min = 1, Max = 1, Mean = 1.00 state/user. Every single user timeline was decoded into a single unbroken run of State 1.
+- State Run Durations: 300 runs total (1 run per user), Min = 29 days, Max = 29 days, Mean = 29.00 days.
+- Daily Transition Rate: 0.0000 transitions / day (zero state transitions produced).
+- Transition Stability: 1.0000 (100.0%).
+- Transition Matrix ($A$):
+  $$\begin{pmatrix} 0 & 1 & 0 \\ 0 & 1 & 0 \\ 0 & 1 & 0 \end{pmatrix}$$
+
+11.3 Mathematical Root Cause of Collapse
+When `GaussianHMM` was fitted directly on continuous GMM posterior probability vectors, the test set GMM posterior vectors were extremely sharp/concentrated (posterior entropy = 0.0000 bits). The Baum-Welch algorithm converged to a degenerate single-state Gaussian component where State 1 had zero covariance and an absorbing transition row ($A_{i,1} = 1.0$ for all $i$).
+
+11.4 Artifact Verification
+- 29.00-Day Mean Duration Artifact: The test split per user is exactly 29 days long (15% of 184 days = 27.6 -> 29 days). Because B6 never transitioned out of State 1, every user's test timeline produced a single run of 29 days. The 29.00-day mean duration is simply the length of the test sequence per user.
+- 100% Transition Stability Artifact: B6's reported "100% stability" is a trivial artifact of zero state transitions.
+
+11.5 Scientific Conclusion
+B6 MUST BE REPORTED AS A FAILED / DEGENERATE EXPERIMENT. It must NEVER be presented as a successful proposed method in an IEEE paper. Retaining this negative result provides valuable scientific insight into the numerical instability of continuous Gaussian HMMs over low-entropy GMM posterior vectors.
+
+
+================================================================================
+SECTION 12 — B5 VALID TEMPORAL MODEL ANALYSIS
+================================================================================
+
+12.1 B5 Model Validation
+Unlike B6, Baseline B5 (GMM + Hard Categorical HMM) is a FULLY VALID, NON-DEGENERATE TEMPORAL SEQUENCE MODEL:
+
+- State Occupancy Counts (Held-out Test Split, $N = 8,700$ obs):
+  - State 0 (Recovery): 1,974 observations (**22.69%**)
+  - State 1 (Baseline): 2,342 observations (**26.92%**)
+  - State 2 (Strain): 4,384 observations (**50.39%**)
+- Per-User Unique States: Min = 3, Max = 3, **Mean = 3.00 states/user**. Every user timeline dynamically transitions across all 3 health states.
+- Transition Matrix ($A$):
+  $$\begin{pmatrix} 0.0130 & 0.9838 & 0.0032 \\ 0.2985 & 0.1043 & 0.5971 \\ 0.3744 & 0.0042 & 0.6214 \end{pmatrix}$$
+- State Run Durations: 5,755 total state runs, Min = 1 day, Max = 18 days, **Mean = 1.51 days**.
+- Daily Transition Rate: **0.2381 transitions / day**.
+- Transition Stability: **0.7619 (76.19%)**.
+
+12.2 Limitations of B5
+B5 discards continuous posterior uncertainty during HMM input construction by applying a hard argmax discretization over GMM posterior vectors prior to Categorical HMM decoding.
+
+
+================================================================================
+SECTION 13 — A-G COMPONENT ABLATION STUDY
+================================================================================
+
+13.1 Ablation Study Pipeline & Results
+The genuine component ablation study evaluates cumulative feature and modeling additions starting from raw physiology up to soft HMM decoding on the held-out test split:
+
+| Step | Configuration | Test Silhouette | Delta vs Prev | Key Finding |
+| :---: | :--- | :---: | :---: | :--- |
+| **A** | Raw Physiology (GMM) | 0.1724 | Baseline | Raw physiological signals only (`resting_hr`, `hrv`, `sleep`, `steps`). |
+| **B** | + Personalized Baseline Deviations | 0.1509 | -0.0214 | Adding deviation features (`hr_dev`, `hrv_dev`, `sleep_dev`, `steps_dev`) without severity normalization. |
+| **C** | + 7-Day Rolling Slopes | 0.1118 | -0.0391 | Adding 7-day rolling slopes (`hr_dev_slope_7d`, etc.) increases feature dimensionality. |
+| **D** | + Severity Score Normalization | **0.1944** | **+0.0826** | **Composite severity normalization (`severity_score`) is the PRIMARY DRIVER of static clustering quality.** |
+| **E** | + GMM Soft Probabilities | **0.1944** | 0.0000 | Soft probability vectors preserve component distributions over GMM space. |
+| **F** | + Hard Categorical HMM | **0.1944** | 0.0000 | Decodes sequential state labels via Categorical HMM. |
+| **G** | + Soft-Posterior HMM | **0.1944** | 0.0000 | Model degenerated to single state. |
+
+13.2 Rationale & Distinction
+- Primary Driver: Step D (+ Severity Score Normalization) provides the largest single gain in cluster separation ($\Delta = +0.0826$).
+- Standalone B3 vs. Ablation Pipeline Distinction: Standalone KMeans on personalized deviations (B3) achieves Silhouette = `0.2260`. However, within the multi-feature GMM ablation pipeline (A-G), Step D achieves `0.1944`. Do NOT mix standalone B3 results with the A-G GMM ablation sequence.
+
+
+================================================================================
+SECTION 14 — MULTI-SEED EXPERIMENT & STOCHASTIC STABILITY
+================================================================================
+
+14.1 Multi-Seed Protocol
+To verify that random seed initializations do not alter conclusions, models were independently retrained across 5 distinct random seeds (`seeds = [42, 100, 2024, 777, 999]`) on `scaled_train` and evaluated on `scaled_test` ($N = 8,700$ obs):
+
+14.2 Empirical Results Across Seeds
+- Proposed B4 (Personalized Deviations GMM):
+  - Mean Silhouette: **$0.2027 \pm 0.0122$**
+- Raw B0 (Global Raw GMM):
+  - Mean Silhouette: **$0.1679 \pm 0.0028$**
+
+14.3 Finding
+Confirms genuine stochastic model variability and demonstrates that Proposed B4 consistently maintains higher mean cluster separation than Raw B0 across independent random initializations.
+
+
+================================================================================
+SECTION 15 — SUBJECT-INDEPENDENT CROSS-VALIDATION
+================================================================================
+
+15.1 Protocol
+5-fold `GroupKFold` cross-validation grouped by `user_id` across all 300 users (240 train users, 60 unseen test users per fold; 11,040 test observations per fold):
+
+15.2 Per-Fold Test Results (Unseen Users)
+- Fold 1: Proposed B4 = `0.1935`, Raw B0 = `0.1585`, Difference = `+0.0350`
+- Fold 2: Proposed B4 = `0.1896`, Raw B0 = `0.1622`, Difference = `+0.0274`
+- Fold 3: Proposed B4 = `0.1915`, Raw B0 = `0.1607`, Difference = `+0.0308`
+- Fold 4: Proposed B4 = `0.1922`, Raw B0 = `0.1619`, Difference = `+0.0303`
+- Fold 5: Proposed B4 = `0.2034`, Raw B0 = `0.1573`, Difference = `+0.0461`
+
+15.3 Summary Metrics
+- Mean Proposed B4 Silhouette: **`0.1940`** (95% Confidence Interval: **`[0.1873, 0.2008]`**)
+- Mean Raw B0 Silhouette: **`0.1601`**
+- Mean Difference ($\bar{d}$): **`+0.0339`**
+- Sample Standard Deviation of Differences ($s_{\text{diff}}$): **`0.007355`**
+
+
+================================================================================
+SECTION 16 — STATISTICAL SIGNIFICANCE TESTING
+================================================================================
+
+16.1 Wilcoxon Signed-Rank Test Results
+A paired two-sided Wilcoxon signed-rank test was conducted on the 5 paired subject-independent fold Silhouette scores:
+- Test Statistic ($W$): `0.0`
+- Exact Two-Sided $p$-value: **`0.0625`**
+- Significance Threshold ($\alpha$): `0.05`
+
+16.2 STATISTICAL SIGNIFICANCE VERDICT
+RIGOROUS INTERPRETATION: $p = 0.0625 > 0.05 \implies$ **NOT STATISTICALLY SIGNIFICANT** at the standard 5% significance level ($\alpha = 0.05$).
+
+16.3 Mathematical Boundary Analysis
+For a two-tailed Wilcoxon signed-rank test with $N = 5$ paired observations where all 5 differences are strictly positive ($W = 0.0$), the minimum achievable exact $p$-value is:
+$$p_{\min} = \frac{1}{2^{5-1}} = \frac{1}{16} = 0.0625$$
+Consequently, a 5-fold cross-validation setup is MATHEMATICALLY INCAPABLE of demonstrating statistical significance at $\alpha = 0.05$ regardless of effect size. At least $N \ge 6$ folds are required to achieve $p < 0.05$ ($p_{\min} = 0.03125$).
+
+16.4 Exact Cohen's d Effect Size
+- Exact Formula: $d = \frac{\bar{d}}{s_{\text{diff}}} = \frac{0.033920}{0.007355} =$ **`4.6119`**
+- CRITICAL STATISTICAL WARNING: While $d = 4.6119$ represents a large standardized effect size, $N = 5$ is an extremely small sample size. Effect size MUST NOT be used as a replacement or surrogate for statistical significance.
+
+
+================================================================================
+SECTION 17 — ROBUSTNESS EXPERIMENTS
+================================================================================
+
+17.1 Missingness Simulation (Missing Completely At Random — MCAR)
+Evaluated model performance under synthetic MCAR missingness injected into testing data:
+- 0% Missingness (Clean): Silhouette = `0.1944`, DB = `1.4211`, Confidence = `100.0%`
+- 10% MCAR Missingness: Silhouette = `0.1944`, DB = `1.3936`, Confidence = `100.0%`
+- 20% MCAR Missingness: Silhouette = `0.2820`, DB = `0.9801`, Confidence = `98.8%`
+- 30% MCAR Missingness: Silhouette = `0.2788`, DB = `1.0538`, Confidence = `100.0%`
+
+17.2 Gaussian Measurement Noise Simulation
+Evaluated model performance under additive zero-mean Gaussian measurement noise $\mathcal{N}(0, \sigma^2)$:
+- $\sigma = 0.05$: Silhouette = `0.0640`, DB = `2.3357`, Confidence = `100.0%`
+- $\sigma = 0.10$: Silhouette = `0.0729`, DB = `2.1763`, Confidence = `100.0%`
+- $\sigma = 0.20$: Silhouette = `0.0847`, DB = `1.9522`, Confidence = `100.0%`
+
+17.3 Interpretation
+Causal forward fill combined with physiological fallback defaults maintains robust cluster assignment confidence under missingness up to 30%. Additive Gaussian measurement noise degrades cluster boundary sharpness, reflecting sensitivity to high-frequency sensor jitter.
+
+
+================================================================================
+SECTION 18 — EXPLAINABILITY & SURROGATE SHAP FIDELITY
+================================================================================
+
+18.1 Dual Explainability Framework
+1. Model-Native Feature Attribution: Computed directly from absolute Gaussian mean differences across GMM components in scaled feature space (`src/gmm.py` -> `compute_gmm_native_feature_importance`).
+2. Surrogate Random Forest SHAP: A surrogate Random Forest classifier (`RandomForestClassifier`) is trained on GMM cluster labels to extract tree-based feature attributions for UI rendering (`app/dashboard_utils.py`).
+
+18.2 Surrogate Classification Fidelity Metrics
+The surrogate model is evaluated strictly on its fidelity in reproducing GMM cluster labels:
+- Surrogate Accuracy: **`96.5%`**
+- Surrogate Balanced Accuracy: **`95.8%`**
+- Surrogate Macro-F1: **`0.9582`**
+- Top Feature Contributors:
+  1. `hrv_dev` (Heart Rate Variability Deviation)
+  2. `hr_dev` (Resting Heart Rate Deviation)
+  3. `sleep_dev` (Sleep Duration Deviation)
+
+18.3 CRITICAL DISTINCTION
+Surrogate accuracy (96.5%) measures HOW ACCURATELY THE SURROGATE REPRODUCES MODEL-GENERATED CLUSTER LABELS. It is NOT medical diagnostic accuracy or clinical predictive accuracy.
+
+
+================================================================================
+SECTION 19 — RISK & PHYSIOLOGICAL STRAIN SCORING
+================================================================================
+
+19.1 Scoring Rationale (`src/risk_scoring.py`)
+The system computes a composite Physiological Strain Risk Score (0–100) combining:
+- Normalized GMM severity score (`severity_score`)
+- 7-day trend slope magnitudes (`trend_score`)
+- Multi-day state persistence (`evaluate_clinical_persistence`)
+- Baseline warm-up status (`baseline_valid`)
+
+19.2 Risk Level Mapping
+- Low Risk (0–35): Homeostatic balance / Recovery.
+- Moderate Risk (35–65): Mild baseline deviation / elevated workload.
+- High Risk (65–100): Severe baseline deviation / multi-day strain persistence.
+
+19.3 NON-CLINICAL DISCLAIMER
+The Risk Score is a HEURISTIC PHYSIOLOGICAL STRAIN INDEX. It is not a clinical risk probability, medical risk score, or disease diagnostic index.
+
+
+================================================================================
+SECTION 20 — STREAMLIT WEB APPLICATION
+================================================================================
+
+20.1 UI Architecture & Pages (`app/main.py`, `app/dashboard_utils.py`)
+- Navigation: Sidebar multi-page navigation preserving existing visual themes, dark mode CSS, cards, and Plotly charts.
+- Page 1: Dashboard (`render_dashboard`) — Displays summary metrics, current health state, risk gauge, 7-day trend charts, and surrogate SHAP feature attributions.
+- Page 2: Analytics (`render_analytics`) — Interactive longitudinal trend plots, GMM posterior probability distribution curves, and cohort benchmarks.
+- Page 3: Recommendations (`render_recommendations`) — Actionable behavioral guidance based on risk level and top physiological strain drivers.
+- Page 4: Data Upload (`render_upload`) — Allows users to upload custom daily wearable CSV files for live inference.
+
+20.2 Engineering Constraint Clarification
+UI Preservation was enforced as a STRICT ENGINEERING CONSTRAINT during system upgrades. UI preservation is an application engineering artifact, NOT a research contribution.
+
+
+================================================================================
+SECTION 21 — ENVIRONMENTAL CONTEXT REMOVAL
+================================================================================
+
+21.1 Removed Environmental Functionality
+In earlier iterations, the codebase contained environmental fetching modules (`src/environment.py`), OpenWeather API integrations, Air Quality Index (AQI), PM2.5, PM10, outdoor ambient temperature, and weather adjustments.
+
+21.2 Rational for Removal
+Outdoor environmental data introduced confounding external variables unsupported by clinical wearable validation. `src/environment.py` was DELETED, and all weather/AQI dependencies were completely removed from the active research pipeline.
+
+21.3 Current Status
+The active pipeline processes strictly physiological wearable signals. Physiological metrics (e.g., body temperature if present) are handled causally as internal physiological signals.
+
+
+================================================================================
+SECTION 22 — MODEL PERSISTENCE & REPRODUCIBILITY
+================================================================================
+
+22.1 Persisted Artifacts (`models/` directory)
+- `models/scaler.pkl`: Persisted `StandardScaler` fitted on training split.
+- `models/kmeans.pkl`: Persisted `KMeans` model.
+- `models/gmm.pkl`: Persisted `GaussianMixture` model.
+- `models/hmm.pkl`: Persisted `GaussianHMM` / `CategoricalHMM` model.
+
+22.2 Training vs. Inference Separation
+- Training Script: `py experiments/run_all.py` fits scalers and models on training data, evaluates metrics, and regenerates paper tables/figures in `experiments/results/`.
+- Inference Script: `py run_inference.py <csv_path>` loads persisted `.pkl` artifacts and executes single-pass inference without refitting.
+
+22.3 Execution Commands
+```bash
+# Run complete research experiment suite & regenerate paper artifacts
+py experiments/run_all.py
+
+# Run inference on dataset
+py run_inference.py data/wearables_health_6mo_daily.csv --output outputs/final_results.csv
+
+# Execute complete automated test suite
+py -m pytest tests/
+
+# Launch Streamlit web dashboard
+py -m streamlit run app/main.py
+```
+
+
+================================================================================
+SECTION 23 — AUTOMATED TEST SUITE
+================================================================================
+
+23.1 Test Execution Results
+Execution of `py -m pytest tests/` yields **21 PASSED, 0 FAILED** (100% pass rate in 164.84s):
+
+23.2 Test Suite Breakdown
+1. `tests/test_preprocessing.py` (8 passed):
+   - `test_handle_missing_causal_no_bfill`: Verifies no backward fill (`bfill`).
+   - `test_remove_outliers_causal`: Verifies expanding causal IQR capping.
+   - `test_compute_baseline_warmup`: Verifies 7-day warm-up window requirement.
+   - `test_fit_transform_scaler_split`: Verifies train-only scaler fitting.
+   - `test_chronological_split`: Verifies chronological date ordering.
+   - `test_subject_independent_split_user_disjointness`: Verifies zero user ID overlap between train and test splits.
+   - `test_causal_initial_imputation_no_future_leakage`: Verifies initial prefix imputation does not leak future test values.
+   - `test_environmental_context_absent_from_pipeline`: Verifies zero weather/AQI columns in active pipeline.
+2. `tests/test_models.py` (9 passed):
+   - `test_gmm_pipeline_dynamic_k`: Verifies GMM BIC/AIC dynamic $k$-selection.
+   - `test_gmm_native_feature_importance`: Verifies GMM-native feature attribution.
+   - `test_kmeans_pipeline`: Verifies KMeans cluster labeling.
+   - `test_hmm_sequence_length_isolation`: Verifies per-user sequence length tracking.
+   - `test_soft_probability_hmm`: Verifies continuous HMM probability input parsing.
+   - `test_model_serialization`: Verifies `.pkl` model saving and loading.
+   - `test_hmm_never_fits_on_test_data`: Verifies `.fit()` is NEVER called on test set data during evaluation.
+   - `test_b0_uses_only_raw_features`: Verifies B0 uses unnormalized raw features only.
+   - `test_b1_executable_threshold_baseline`: Verifies B1 threshold baseline executes dynamically.
+3. `tests/test_risk_scoring.py` (3 passed):
+   - Verifies risk score scaling (0–100), risk level boundaries, and persistence flags.
+4. `tests/test_pipeline.py` (1 passed):
+   - `test_full_pipeline_execution`: Verifies end-to-end inference output contract.
+
+
+================================================================================
+SECTION 24 — RESEARCH VALIDATION HISTORY & RESOLUTIONS
+================================================================================
+
+Summary of major methodological defects discovered and corrected during research audit:
+
+1. DEFECT: Backward fill (`bfill()`) in missing value handling.
+   - FIX: Removed `bfill()`. Implemented causal forward fill (`ffill()`) and initial physiological defaults.
+   - STATUS: RESOLVED & VERIFIED (`test_handle_missing_causal_no_bfill`).
+
+2. DEFECT: Non-causal global dataset outlier capping.
+   - FIX: Implemented expanding causal IQR window ($t' \le t$).
+   - STATUS: RESOLVED & VERIFIED (`test_remove_outliers_causal`).
+
+3. DEFECT: Scaler fitted on unpartitioned dataset.
+   - FIX: Scaler fitted strictly on `train_df`.
+   - STATUS: RESOLVED & VERIFIED (`test_fit_transform_scaler_split`).
+
+4. DEFECT: Uncalibrated Days 1–6 used as valid baseline.
+   - FIX: Enforced `min_periods=7` warm-up requirement and `baseline_valid` flag.
+   - STATUS: RESOLVED & VERIFIED (`test_compute_baseline_warmup`).
+
+5. DEFECT: Hardcoded B1 baseline constants (`b1_sil = 0.1420`).
+   - FIX: Implemented executable `run_b1_threshold_baseline()`.
+   - STATUS: RESOLVED & VERIFIED (`test_b1_executable_threshold_baseline`).
+
+6. DEFECT: Fake/derived A-G ablation results (hardcoded subtractions).
+   - FIX: Constructed independent feature scaling and GMM fitting for each step A–G.
+   - STATUS: RESOLVED & VERIFIED (`experiments/run_all.py`).
+
+7. DEFECT: HMM models fitted directly on test set data.
+   - FIX: HMM models fit ONLY on `train_labeled`. Test evaluation runs inference only.
+   - STATUS: RESOLVED & VERIFIED (`test_hmm_never_fits_on_test_data`).
+
+8. DEFECT: Dataset provenance mismatch documentation.
+   - FIX: Updated `docs/data_provenance.md` to state 300 users, 55,200 total records, synthetic status.
+   - STATUS: RESOLVED & VERIFIED (`docs/data_provenance.md`).
+
+9. DEFECT: Full-column median fallback in prefix imputation.
+   - FIX: Updated `handle_missing()` to use physiological fallback defaults or train cohort stats.
+   - STATUS: RESOLVED & VERIFIED (`test_causal_initial_imputation_no_future_leakage`).
+
+10. DEFECT: Multi-seed experiment using fixed results.
+    - FIX: Retrained GMM models independently across 5 seeds on train split.
+    - STATUS: RESOLVED & VERIFIED (`0.2027 +/- 0.0122`).
+
+11. DEFECT: Comparing B6 log-likelihood (+19.9468) against B5 `N/A`.
+    - FIX: Evaluated B5 and B6 under common sequence-level metrics (stability, duration, rate).
+    - STATUS: RESOLVED & VERIFIED (`experiments/run_all.py`).
+
+12. DEFECT: Unnoticed B6 model collapse/degeneracy.
+    - FIX: Executed deep inspection (`scratch/inspect_b6_degeneracy.py`). Documented B6 collapse to State 1 and established B5 as the valid temporal model.
+    - STATUS: RESOLVED & VERIFIED (`RESEARCH_AUDIT_FINAL.md`).
+
+
+================================================================================
+SECTION 25 — FINAL SCIENTIFIC INTERPRETATION
+================================================================================
+
+NEUTRAL SCIENTIFIC SYNTHESIS:
+1. Static Clustering Quality: Standalone KMeans on personalized deviations (B3) achieves the highest static Silhouette score (`0.2260`), followed by KMeans raw (B2: `0.2050`), GMM personalized (B4: `0.1944`), and GMM raw (B0: `0.1724`). Personalized threshold rules (B1: `0.0098`) yield poor separation.
+2. Driver of Feature Engineering Gain: Within the GMM pipeline (A-G), composite severity normalization (Step D, $\Delta = +0.0826$) is the primary driver of cluster separation.
+3. Subject-Independent Generalizability: Proposed B4 maintains a higher mean Silhouette score than Raw B0 across 5 unseen user folds (`0.1940` vs. `0.1601`, mean diff = `+0.0339`, Cohen's $d = 4.6119$).
+4. Non-Parametric Significance Bound: Paired Wilcoxon test yields $W = 0.0, p = 0.0625$. Because $0.0625 > 0.05$, the difference is NOT statistically significant at $\alpha = 0.05$ due to the $N = 5$ sample size limit ($p_{\min} = 0.0625$).
+5. Temporal Modeling Finding: B6 (Soft-Posterior HMM) suffered model collapse to State 1 (100% occupancy). B5 (Hard Categorical HMM) is the ONLY VALID TEMPORAL MODEL, achieving non-trivial occupancy across all 3 health states (State 0: 22.69%, State 1: 26.92%, State 2: 50.39%) with a mean state duration of 1.51 days.
+
+
+================================================================================
+SECTION 26 — CLAIMS BOUNDARY MATRIX (WHAT CAN AND CANNOT BE CLAIMED)
+================================================================================
+
+26.1 SUPPORTED CLAIMS (PERMISSIBLE IN PAPER)
+- "Personalized baseline deviation features combined with composite severity normalization improve static GMM cluster separation compared to raw physiological features."
+- "Causal leakage-controlled preprocessing prevents future data contamination in longitudinal wearable analytics."
+- "Categorical HMM temporal modeling over GMM cluster assignments (B5) produces multi-day state persistence (mean duration 1.51 days) across 3 distinct latent health states."
+- "The proposed personalization pipeline demonstrates large standardized effect sizes (Cohen's d = 4.6119) on unseen user splits."
+- "Surrogate Random Forest classification achieves 96.5% fidelity in reproducing GMM cluster assignments for explainability."
+
+26.2 UNSUPPORTED CLAIMS (STRICTLY PROHIBITED)
+- DO NOT claim medical diagnosis, clinical disease prediction, or clinical trial validation.
+- DO NOT claim statistical significance at $\alpha = 0.05$ for the Wilcoxon test ($p = 0.0625 > 0.05$).
+- DO NOT claim that B6 (Soft-Posterior HMM) succeeded or outperformed B5. B6 degenerated to a single state.
+- DO NOT describe the dataset as real patient data or live-collected clinical data (it is synthetic).
+- DO NOT claim that GMM outperforms KMeans on static Silhouette score (B3 KMeans = 0.2260 > B4 GMM = 0.1944).
+- DO NOT claim clinical ground truth validation for latent states (*Recovery*, *Baseline*, *Strain*).
+
+
+================================================================================
+SECTION 27 — POTENTIAL RESEARCH CONTRIBUTIONS
+================================================================================
+
+27.1 CONFIRMED SYSTEM CONTRIBUTIONS
+1. Leakage-Free Preprocessing Architecture: A fully causal longitudinal preprocessing pipeline enforcing forward fill, causal expanding outlier capping, and train-only scaling.
+2. Subject-Independent Evaluation Benchmark: A 5-fold grouped cross-validation benchmark establishing baseline performance across 300 longitudinal user timelines.
+3. Empirical Degeneracy Analysis: An empirical demonstration of parameter collapse in continuous Gaussian HMMs trained over low-entropy posterior vectors.
+
+27.2 POTENTIAL CONTRIBUTIONS REQUIRING LITERATURE REVIEW
+Prior to drafting the final manuscript, a formal literature review must confirm whether the following aspects possess novelty relative to prior published IEEE/ACM literature:
+- Personalized baseline deviation framing for continuous GMM state discovery.
+- Integration of surrogate tree-based SHAP attributions with GMM latent component means.
+
+
+================================================================================
+SECTION 28 — SYSTEM LIMITATIONS
+================================================================================
+
+1. Synthetic Data: Dataset is synthetic and lacks clinical ground-truth diagnostic validation.
+2. Small Statistical Fold Sample ($N=5$): 5-fold cross-validation imposes a mathematical lower bound of $p = 0.0625$, preventing significance testing at $\alpha = 0.05$.
+3. HMM Model Collapse (B6): Continuous Gaussian HMM failed to maintain multi-state distributions over sharp GMM posterior probability vectors.
+4. Objective Divergence: Distance-based clustering metrics (Silhouette) evaluate spatial separation, whereas temporal models evaluate sequential transitions.
+5. Heuristic Strain Scoring: Risk scoring relies on heuristic weightings without clinical calibration.
+
+
+================================================================================
+SECTION 29 — INSTRUCTIONS FOR DOWNSTREAM AI / PAPER AUTHOR
+================================================================================
+
+When using this document as primary context to draft an IEEE research paper:
+
+1. READ ONLY THIS DOCUMENT (`EXPERIMENTATION.txt`) as the authoritative summary of the project state.
+2. TREAT SYNTHETIC DATA HONESTLY: Disclose 300 users, 55,200 records, synthetic generation, and non-clinical scope.
+3. DO NOT CLAIM B6 SUCCEEDED: B6 collapsed to 1 state (State 1 = 100%). Frame B6 as a negative result / failure analysis. Present B5 as the valid temporal model.
+4. DO NOT CLAIM P < 0.05 SIGNIFICANCE: Report $W = 0.0, p = 0.0625$, and state clearly: "NOT statistically significant at $\alpha = 0.05$ due to $N=5$ sample size limit." Report Cohen's $d = 4.6119$.
+5. PRESERVE EXACT NUMERICAL VALUES: Use the exact numbers from Sections 10, 12, 13, 14, 15, 16, 17, and 18.
+6. SEPARATE APPLICATION FROM SCIENCE: Streamlit UI preservation and card styling are engineering constraints, NOT scientific contributions.
+7. SEPARATE B0–B6 FROM A–G: Do not confuse standalone B3 KMeans results (0.2260) with the GMM A–G ablation sequence (Step D = 0.1944).
+8. PERFORM INDEPENDENT LITERATURE REVIEW: Perform a separate literature review for background, related works, and citation placement.
+
+================================================================================
+END OF EXPERIMENTATION.txt
+================================================================================

@@ -7,7 +7,6 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-
 ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
@@ -16,11 +15,8 @@ from app.dashboard_utils import apply_dashboard_theme
 from run_inference import run_pipeline
 from src.preprocessing import validate_required_columns
 
-
-DEFAULT_CITY = "Bangalore"
 DEFAULT_OUTPUT_PATH = ROOT_DIR / "outputs" / "final_results.csv"
 SAMPLE_FILE = ROOT_DIR / "data" / "wearables_health_6mo_daily.csv"
-
 
 st.set_page_config(page_title="Upload Data", layout="wide")
 apply_dashboard_theme()
@@ -36,7 +32,6 @@ left, right = st.columns([1, 1.1])
 
 with left:
     uploaded_file = st.file_uploader("Upload wearable CSV", type=["csv"])
-    city = st.text_input("City", value=st.session_state.get("environment_city", DEFAULT_CITY))
     use_sample = st.button("Use bundled sample dataset")
     run_clicked = st.button("Run Full Analysis", type="primary", use_container_width=True)
 
@@ -69,13 +64,12 @@ if run_clicked:
     else:
         try:
             active_df = source_df if source_df is not None else st.session_state["data"]
-            st.session_state["environment_city"] = city
             with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as temp_file:
                 active_df.to_csv(temp_file.name, index=False)
                 temp_path = temp_file.name
 
             with st.spinner("Running preprocessing, clustering, HMM, explainability, and recommendation pipeline..."):
-                result = run_pipeline(temp_path, city=city.strip() or DEFAULT_CITY, output_path=str(DEFAULT_OUTPUT_PATH))
+                result = run_pipeline(temp_path, output_path=str(DEFAULT_OUTPUT_PATH))
 
             st.session_state["analysis_result"] = result["analysis_result"]
             st.session_state["output_path"] = str(result["output_path"])

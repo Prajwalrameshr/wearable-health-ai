@@ -1,0 +1,6 @@
+scenario,description,rows_retained,pct_rows_retained,users_retained,pct_users_retained,feature_completeness,scientific_authenticity,recommendation
+Scenario 1,Strict Complete Case All 8 Features (inc. SpO2/HRV),1066,14.39%,23,32.39%,100% complete across 8 features,100% Authentic (Severe user loss due to 82.9% SpO2 missingness),Not Recommended (Too small cohort)
+Scenario 2,Authentic Core Features (Excl. SpO2/HRV) Complete Case,3498,47.21%,69,97.18%,100% complete across 6 core features,100% Authentic (Zero imputation of any kind),Acceptable (Pure authentic baseline)
+Scenario 3,Conservative Causal FFill (limit=2d) Core Features,4159,56.13%,69,97.18%,100% complete across 6 core features,High Authenticity (Max 48h within-user past fill, zero cohort fill),Strong Candidate
+Scenario 4,Authentic Dual-Tier Architecture (Tier 1 Core + Tier 2 Nocturnal Sub-Cohort),4159 / 1066,56.13% / 14.39%,69 / 23,97.18% / 32.39%,100% complete across primary/sub-cohort spaces,Maximum Scientific Authenticity (Primary model on 4159 core rows; Nocturnal model on 1066 authentic rows),RECOMMENDED FOR PUBLICATION
+Scenario 5,Core Features (ffill limit=2d) + User History Filter (>=14 days/user),4115,55.53%,61,85.92%,100% complete across 6 core features,High Authenticity + Guaranteed baseline calibration history,High-Quality Alternative

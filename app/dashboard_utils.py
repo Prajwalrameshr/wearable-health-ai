@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, confusion_matrix, f1_score
 from sklearn.inspection import permutation_importance
 
 try:
@@ -80,11 +81,11 @@ def build_daily_insight(analysis: dict[str, Any], latest: pd.Series | None, base
         return f"Recovery is leading today, with HRV at {float(latest.get('hrv_rmssd_ms', 0.0)):.1f} ms and sleep at {float(latest.get('sleep_duration_hours', 0.0)):.1f} h."
     if analysis.get("state") == "Strain":
         return "Strain is elevated and recovery inputs should be prioritized immediately."
-    return "Baseline physiology is holding, but the trend still deserves monitoring." 
+    return "Baseline physiology is holding, but the trend still deserves monitoring."
 
 
 def plot_risk_gauge(score: float) -> go.Figure:
-    fig = go.Figure(go.Indicator(mode="gauge+number", value=float(score), title={"text": "Risk Gauge"}, gauge={"axis": {"range": [0, 100]}, "bar": {"color": DANGER}, "steps": [{"range": [0, 35], "color": "rgba(34,197,94,.28)"}, {"range": [35, 65], "color": "rgba(250,204,21,.28)"}, {"range": [65, 100], "color": "rgba(239,68,68,.28)"}] }))
+    fig = go.Figure(go.Indicator(mode="gauge+number", value=float(score), title={"text": "Physiological Strain Index"}, gauge={"axis": {"range": [0, 100]}, "bar": {"color": DANGER}, "steps": [{"range": [0, 35], "color": "rgba(34,197,94,.28)"}, {"range": [35, 65], "color": "rgba(250,204,21,.28)"}, {"range": [65, 100], "color": "rgba(239,68,68,.28)"}] }))
     fig.update_layout(height=280, template=PLOT_TEMPLATE, paper_bgcolor=APP_BG, margin=dict(l=10, r=10, t=50, b=10))
     return fig
 
@@ -156,18 +157,34 @@ def compute_warning_flags(feature_df: pd.DataFrame | None) -> dict[str, Any]:
 
 
 def compute_explainability(final_results_df: pd.DataFrame | None, analysis: dict[str, Any], model_type: str) -> dict[str, Any]:
-    fallback_reason = "Permutation importance"
+    fallback_reason = "Model center influence"
     if final_results_df is None or final_results_df.empty:
-        return {"method": fallback_reason, "importance_df": pd.DataFrame(columns=["Feature", "Importance"]), "waterfall_df": pd.DataFrame(columns=["Feature", "Contribution"])}
+        return {"method": fallback_reason, "importance_df": pd.DataFrame(columns=["Feature", "Importance"]), "waterfall_df": pd.DataFrame(columns=["Feature", "Contribution"]), "fidelity": {}}
+
     target_column = "gmm_state_label" if model_type == "gmm" else "cluster_label"
     feature_columns = [column for column in ["resting_hr_bpm", "hrv_rmssd_ms", "sleep_duration_hours", "steps", "spo2_avg_pct", "severity_score", "hr_dev", "hrv_dev", "sleep_dev"] if column in final_results_df.columns]
+
     if target_column in final_results_df.columns and len(feature_columns) >= 3:
         explain_df = final_results_df[feature_columns + [target_column]].dropna().copy()
         if not explain_df.empty and explain_df[target_column].nunique() >= 2:
             X = explain_df[feature_columns]
             y = explain_df[target_column]
-            model = RandomForestClassifier(n_estimators=220, max_depth=6, random_state=42)
+            model = RandomForestClassifier(n_estimators=150, max_depth=5, random_state=42)
             model.fit(X, y)
+            preds = model.predict(X)
+
+            acc = float(accuracy_score(y, preds))
+            bal_acc = float(balanced_accuracy_score(y, preds))
+            f1 = float(f1_score(y, preds, average="macro"))
+            cm = confusion_matrix(y, preds).tolist()
+
+            fidelity = {
+                "accuracy": round(acc * 100.0, 1),
+                "balanced_accuracy": round(bal_acc * 100.0, 1),
+                "macro_f1": round(f1, 4),
+                "confusion_matrix": cm,
+            }
+
             latest_features = X.iloc[[-1]]
             if shap is not None:
                 try:
@@ -178,17 +195,19 @@ def compute_explainability(final_results_df: pd.DataFrame | None, analysis: dict
                         shap_array = shap_array[0]
                     importance_df = pd.DataFrame({"Feature": feature_columns, "Importance": np.abs(shap_array).mean(axis=0)}).sort_values("Importance", ascending=False)
                     waterfall_df = pd.DataFrame({"Feature": feature_columns, "Contribution": shap_array[-1]}).sort_values("Contribution", key=lambda s: s.abs(), ascending=False)
-                    return {"method": "SHAP TreeExplainer", "importance_df": importance_df, "waterfall_df": waterfall_df}
+                    return {"method": "Surrogate-Model SHAP", "importance_df": importance_df, "waterfall_df": waterfall_df, "fidelity": fidelity}
                 except Exception:
                     pass
+
             perm = permutation_importance(model, X, y, n_repeats=5, random_state=42)
             importance_df = pd.DataFrame({"Feature": feature_columns, "Importance": perm.importances_mean}).sort_values("Importance", ascending=False)
             waterfall_df = pd.DataFrame({"Feature": feature_columns, "Contribution": latest_features.iloc[0].values - X.mean().values}).sort_values("Contribution", key=lambda s: s.abs(), ascending=False)
-            return {"method": fallback_reason, "importance_df": importance_df, "waterfall_df": waterfall_df}
+            return {"method": "Surrogate Permutation Importance", "importance_df": importance_df, "waterfall_df": waterfall_df, "fidelity": fidelity}
+
     model_influence = analysis.get("model_feature_influence") or {}
     importance_df = pd.DataFrame({"Feature": list(model_influence.keys()), "Importance": list(model_influence.values())}).sort_values("Importance", ascending=False) if model_influence else pd.DataFrame(columns=["Feature", "Importance"])
     waterfall_df = pd.DataFrame({"Feature": importance_df.get("Feature", []), "Contribution": importance_df.get("Importance", [])})
-    return {"method": "Model center influence", "importance_df": importance_df, "waterfall_df": waterfall_df}
+    return {"method": "GMM Native Feature Influence", "importance_df": importance_df, "waterfall_df": waterfall_df, "fidelity": {}}
 
 
 def plot_explainability_bars(explainability: dict[str, Any]) -> go.Figure | None:
@@ -212,14 +231,19 @@ def plot_waterfall_fallback(explainability: dict[str, Any]) -> go.Figure | None:
     return fig
 
 
-def render_environment_cards(environment: dict[str, Any]) -> None:
+def render_environment_cards(latest_or_summary: Any = None, extra_arg: Any = None) -> None:
     c1, c2, c3 = st.columns(3)
+    latest = latest_or_summary if isinstance(latest_or_summary, (pd.Series, dict)) else {}
+    hr = float(latest.get("resting_hr_bpm", 65.0)) if isinstance(latest, dict) else 65.0
+    hrv = float(latest.get("hrv_rmssd_ms", 55.0)) if isinstance(latest, dict) else 55.0
+    sleep = float(latest.get("sleep_duration_hours", 7.2)) if isinstance(latest, dict) else 7.2
+
     with c1:
-        render_card("AQI", str(environment.get("aqi", "-")), str(environment.get("weather", "Unknown")), status_color("Low" if float(environment.get("aqi", 1)) <= 2 else "Moderate" if float(environment.get("aqi", 1)) <= 3 else "High"))
+        render_card("Resting HR Signal", f"{hr:.0f} bpm", "Baseline resting pulse", status_color("Good" if hr <= 72 else "Warning"))
     with c2:
-        render_card("Temperature", f"{float(environment.get('temperature', 0.0)):.1f} C", f"Feels like {float(environment.get('feels_like', 0.0)):.1f} C", INFO)
+        render_card("HRV Recovery", f"{hrv:.1f} ms", "Autonomic RMSSD index", status_color("Good" if hrv >= 45 else "Warning"))
     with c3:
-        render_card("Humidity", f"{float(environment.get('humidity', 0.0)):.0f}%", "Outdoor readiness", WARNING if float(environment.get("humidity", 0.0)) > 75 else SUCCESS)
+        render_card("Sleep Continuity", f"{sleep:.1f} hrs", "Restorative sleep duration", status_color("Good" if sleep >= 7.0 else "Warning"))
 
 
 def build_future_risk_text(analysis: dict[str, Any], transition_matrix: pd.DataFrame | None) -> str:
@@ -240,10 +264,10 @@ def render_clinical_advisory_card(clinical_escalation: dict[str, Any] | None) ->
     level = clinical_escalation.get("advisory_level", "Normal")
     if level == "Normal":
         return
-    bg_color = DANGER if level == "Clinical Advisory" else WARNING
+    bg_color = DANGER if level == "Strain Advisory" else WARNING
     st.markdown(
         f"<div class='card' style='border-color:{bg_color}; background-color:{CARD_BG}; margin-bottom:1rem;'>"
-        f"<div class='card-title' style='color:{bg_color}; font-weight:bold;'>⚠️ Clinical Advisory Level: {level.upper()}</div>"
+        f"<div class='card-title' style='color:{bg_color}; font-weight:bold;'>⚠️ Strain Advisory Level: {level.upper()}</div>"
         f"<div style='font-size:1.05rem; margin:.4rem 0;'>{clinical_escalation.get('clinical_summary_message', '')}</div>"
         f"<div class='card-subtitle'>Consecutive Anomaly Days: {clinical_escalation.get('consecutive_high_risk_days', 0)}</div>"
         f"</div>",
@@ -275,3 +299,59 @@ def plot_cohort_benchmarks(cohort_data: dict[str, Any] | None) -> go.Figure | No
     fig.update_layout(height=320, paper_bgcolor=APP_BG, plot_bgcolor=CARD_BG, xaxis=dict(range=[0, 100]), margin=dict(l=10, r=10, t=10, b=10))
     return fig
 
+
+def render_state_metrics(analysis: dict[str, Any]) -> None:
+    state = str(analysis.get("state", "Unknown"))
+    confidence = float(analysis.get("confidence", 0.0))
+    risk_score = float(analysis.get("risk", {}).get("score", 0.0))
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        render_card("Inferred State", state, "Latent physiological state", status_color(state))
+    with c2:
+        render_card("State Confidence", f"{confidence:.1f}%", "GMM posterior confidence", INFO)
+    with c3:
+        render_card("Physiological Strain Index", f"{risk_score:.0f}", "Composite strain score", status_color("Low" if risk_score < 35 else "Moderate" if risk_score < 65 else "High"))
+
+
+# Additional helper renderers for standalone Streamlit pages
+def render_time_series(df: pd.DataFrame | None) -> None:
+    fig = plot_trends(df)
+    if fig is not None:
+        st.plotly_chart(fig, use_container_width=True)
+
+
+def render_baseline_comparison(df: pd.DataFrame | None) -> None:
+    fig = plot_baseline_comparison(df)
+    if fig is not None:
+        st.plotly_chart(fig, use_container_width=True)
+
+
+def render_gmm_probabilities(probs: dict[str, Any] | None) -> None:
+    fig = plot_state_probabilities(probs)
+    if fig is not None:
+        st.plotly_chart(fig, use_container_width=True)
+
+
+def render_transition_heatmap_view(matrix: pd.DataFrame | None) -> None:
+    fig = plot_transition_heatmap(matrix)
+    if fig is not None:
+        st.plotly_chart(fig, use_container_width=True)
+
+
+def render_shap_explainability(df: pd.DataFrame | None, influence: Any = None) -> None:
+    explain = compute_explainability(df, {"model_feature_influence": influence}, "gmm")
+    fig = plot_explainability_bars(explain)
+    if fig is not None:
+        st.plotly_chart(fig, use_container_width=True)
+
+
+def render_early_warning(analysis: dict[str, Any]) -> None:
+    ew = analysis.get("early_warning", {})
+    st.write(ew.get("message", "No early warning pattern."))
+
+
+def render_recovery_score_trend(df: pd.DataFrame | None) -> None:
+    if df is not None and "severity_score" in df.columns:
+        fig = px.line(df, x="date", y="severity_score", title="Severity Trend", template=PLOT_TEMPLATE)
+        st.plotly_chart(fig, use_container_width=True)

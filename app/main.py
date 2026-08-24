@@ -52,13 +52,12 @@ risk_scoring_module = importlib.reload(risk_scoring_module)
 run_pipeline = run_inference_module.run_pipeline
 calculate_risk_score = risk_scoring_module.calculate_risk_score
 
-DEFAULT_CITY = "Bangalore"
 SAMPLE_FILE = ROOT_DIR / "data" / "wearables_health_6mo_daily.csv"
 OUTPUT_DIR = ROOT_DIR / "outputs"
 PAGES = ["Dashboard", "Analysis", "Recommendations"]
 MODEL_LABELS = {"KMeans + HMM": "kmeans", "GMM + HMM": "gmm"}
-CACHE_SCHEMA_VERSION = "v3"
-SESSION_DEFAULTS = {"active_df": None, "model_cache": {}, "last_data_key": None, "last_city": DEFAULT_CITY}
+CACHE_SCHEMA_VERSION = "v4"
+SESSION_DEFAULTS = {"active_df": None, "model_cache": {}, "last_data_key": None}
 RISK_CARD_ORDER = [
     ("cardiovascular_strain", "Cardiovascular Strain"),
     ("sleep_deficit", "Sleep Deficit Risk"),
@@ -85,9 +84,9 @@ def dataframe_key(df: pd.DataFrame | None) -> str | None:
     return f"{len(df)}-{len(df.columns)}-{int(pd.util.hash_pandas_object(df.fillna('__nan__'), index=True).sum())}"
 
 
-def load_model(dataframe: pd.DataFrame, city: str, model_type: str) -> dict[str, Any]:
+def load_model(dataframe: pd.DataFrame, model_type: str) -> dict[str, Any]:
     data_key = dataframe_key(dataframe)
-    cache_key = f"{CACHE_SCHEMA_VERSION}:{model_type}:{city.strip().lower()}:{data_key}"
+    cache_key = f"{CACHE_SCHEMA_VERSION}:{model_type}:{data_key}"
     cache = st.session_state["model_cache"]
     if cache_key in cache:
         return cache[cache_key]
@@ -95,22 +94,15 @@ def load_model(dataframe: pd.DataFrame, city: str, model_type: str) -> dict[str,
     with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as temp_file:
         dataframe.to_csv(temp_file.name, index=False)
         temp_path = temp_file.name
-    pipeline_kwargs = {"csv_path": temp_path, "city": city.strip() or DEFAULT_CITY, "output_path": str(OUTPUT_DIR / f"streamlit_{model_type}_results.csv")}
-    params = inspect.signature(run_pipeline).parameters
-    if "model_type" in params:
-        pipeline_kwargs["model_type"] = model_type
-        result = run_pipeline(**pipeline_kwargs)
-    elif "model" in params:
-        pipeline_kwargs["model"] = model_type
-        result = run_pipeline(**pipeline_kwargs)
-    elif len(params) >= 4:
-        result = run_pipeline(temp_path, city.strip() or DEFAULT_CITY, str(OUTPUT_DIR / f"streamlit_{model_type}_results.csv"), model_type)
-    else:
-        result = run_pipeline(**pipeline_kwargs)
+
+    result = run_pipeline(
+        csv_path=temp_path,
+        output_path=str(OUTPUT_DIR / f"streamlit_{model_type}_results.csv"),
+        model_type=model_type,
+    )
     cache[cache_key] = result
     st.session_state["model_cache"] = cache
     st.session_state["last_data_key"] = data_key
-    st.session_state["last_city"] = city
     return result
 
 
@@ -123,12 +115,10 @@ def get_latest_baseline(final_results_df: pd.DataFrame | None) -> tuple[pd.Serie
     return latest, baseline
 
 
-def render_upload_controls() -> tuple[pd.DataFrame | None, str, bool]:
-    upload_col, city_col, action_col = st.columns([1.6, 0.9, 1.0])
+def render_upload_controls() -> tuple[pd.DataFrame | None, bool]:
+    upload_col, action_col = st.columns([2.0, 1.0])
     with upload_col:
         uploaded_file = st.file_uploader("Upload wearable CSV", type=["csv"])
-    with city_col:
-        city = st.text_input("Environment city", value=st.session_state.get("last_city", DEFAULT_CITY))
     with action_col:
         st.write("")
         use_sample = st.button("Use Sample Data", use_container_width=True)
@@ -145,8 +135,8 @@ def render_upload_controls() -> tuple[pd.DataFrame | None, str, bool]:
             st.session_state["active_df"] = None
         else:
             st.session_state["active_df"] = source_df.copy()
-            st.success("Dataset loaded. Rolling baselines, normalization, and temporal features will be created during analysis.")
-    return st.session_state.get("active_df"), city, run_clicked
+            st.success("Dataset loaded. Rolling baselines, causal normalization, and temporal features ready.")
+    return st.session_state.get("active_df"), run_clicked
 
 
 def build_personalized_actions(analysis: dict[str, Any], latest: pd.Series | None, baseline: pd.Series | None) -> list[str]:
@@ -204,7 +194,6 @@ def _build_display_risk_map(analysis: dict[str, Any], latest: pd.Series | None =
             state=str(analysis.get("state", "Baseline")),
             state_confidence=float(analysis.get("confidence", 0.0)) / 100.0,
             state_duration=int(analysis.get("state_duration_days", 1)),
-            environment=analysis.get("environment"),
         )
         fallback_map = fallback_risk.get("risk_intelligence") or {}
         for key, label in RISK_CARD_ORDER:
@@ -218,9 +207,9 @@ def _build_display_risk_map(analysis: dict[str, Any], latest: pd.Series | None =
 
 def render_risk_intelligence(analysis: dict[str, Any], latest: pd.Series | None = None) -> None:
     risk_map = _build_display_risk_map(analysis, latest=latest)
-    st.markdown("<div class='section-title'>Health Risk Intelligence</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Physiological Strain Intelligence</div>", unsafe_allow_html=True)
     for index in range(0, len(RISK_CARD_ORDER), 2):
-        row_keys = RISK_CARD_ORDER[index:index + 2]
+        row_keys = RISK_CARD_ORDER[index : index + 2]
         cols = st.columns(2)
         for col, (risk_key, _) in zip(cols, row_keys):
             payload = risk_map[risk_key]
@@ -231,6 +220,8 @@ def render_risk_intelligence(analysis: dict[str, Any], latest: pd.Series | None 
                 st.progress(risk_progress)
                 st.caption(f"{payload['score']:.1f}/100 | {payload['level']}")
                 st.markdown("</div>", unsafe_allow_html=True)
+
+
 def render_what_if_simulation(analysis: dict[str, Any], latest: pd.Series | None) -> None:
     st.markdown("<div class='section-title'>What If Simulation</div>", unsafe_allow_html=True)
     if latest is None:
@@ -256,11 +247,11 @@ def render_what_if_simulation(analysis: dict[str, Any], latest: pd.Series | None
 
     sim_sev = float(sim_row.get("severity_score", 0.0))
     sim_state = "Recovery" if sim_sev < 1.8 else "Strain" if sim_sev > 3.5 else "Baseline"
-    sim_risk = calculate_risk_score(sim_row, state=sim_state, state_confidence=0.85, state_duration=1, environment=analysis.get("environment"))
+    sim_risk = calculate_risk_score(sim_row, state=sim_state, state_confidence=0.85, state_duration=1)
 
     with result_col:
         render_card("Simulated State", sim_state, "Updated from your slider inputs", status_color(sim_state))
-        render_card("Simulated Risk", f"{float(sim_risk.get('score', 0.0)):.1f}", f"Level: {sim_risk.get('level', 'Unknown')}", status_color(str(sim_risk.get("level", "Moderate"))))
+        render_card("Simulated Strain", f"{float(sim_risk.get('score', 0.0)):.1f}", f"Level: {sim_risk.get('level', 'Unknown')}", status_color(str(sim_risk.get("level", "Moderate"))))
 
         original_sleep_risk = next(
             (item.get("score") for item in (analysis.get("risk_intelligence") or {}).values() if item.get("label") == "Sleep Deficit Risk"),
@@ -271,12 +262,14 @@ def render_what_if_simulation(analysis: dict[str, Any], latest: pd.Series | None
 
         if original_sleep_risk is not None and new_sleep_risk is not None:
             delta = float(original_sleep_risk) - float(new_sleep_risk)
-            st.info(f"If sleep changes to {sleep_hours:.1f} h, sleep risk changes by {delta:.1f} points and the predicted state becomes {sim_state}.")
+            st.info(f"If sleep changes to {sleep_hours:.1f} h, sleep risk changes by {delta:.1f} points and predicted state becomes {sim_state}.")
         else:
-            st.info(f"If these inputs hold, the predicted state becomes {sim_state} with an estimated risk score of {float(sim_risk.get('score', 0.0)):.1f}.")
+            st.info(f"If these inputs hold, predicted state becomes {sim_state} with estimated strain index of {float(sim_risk.get('score', 0.0)):.1f}.")
 
-    st.markdown("<div class='section-title'>Simulated Risk Intelligence</div>", unsafe_allow_html=True)
-    render_risk_intelligence({"risk_intelligence": sim_risk.get("risk_intelligence", {}), "multi_risk": sim_risk.get("multi_risk", {}), "state": sim_state, "confidence": 85.0, "state_duration_days": 1, "environment": analysis.get("environment")}, latest=sim_row)
+    st.markdown("<div class='section-title'>Simulated Strain Intelligence</div>", unsafe_allow_html=True)
+    render_risk_intelligence({"risk_intelligence": sim_risk.get("risk_intelligence", {}), "multi_risk": sim_risk.get("multi_risk", {}), "state": sim_state, "confidence": 85.0, "state_duration_days": 1}, latest=sim_row)
+
+
 def render_dashboard_page(analysis: dict[str, Any], result: dict[str, Any]) -> None:
     render_clinical_advisory_card(analysis.get("clinical_escalation"))
     final_results_df = result.get("final_results_df")
@@ -295,7 +288,7 @@ def render_dashboard_page(analysis: dict[str, Any], result: dict[str, Any]) -> N
         st.write(build_daily_insight(analysis, latest, baseline))
         st.markdown("</div>", unsafe_allow_html=True)
     with right:
-        st.markdown("<div class='card'><div class='section-title'>Risk Gauge</div>", unsafe_allow_html=True)
+        st.markdown("<div class='card'><div class='section-title'>Strain Index Gauge</div>", unsafe_allow_html=True)
         st.plotly_chart(plot_risk_gauge(float(analysis.get("risk", {}).get("score", 0.0))), use_container_width=True, config={"displayModeBar": False})
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -393,7 +386,10 @@ def render_analysis_page(analysis: dict[str, Any], result: dict[str, Any], model
         st.markdown("</div>", unsafe_allow_html=True)
     explainability = compute_explainability(final_results_df, analysis, model_type)
     with row4[1]:
-        st.markdown(f"<div class='card'><div class='section-title'>SHAP Explainability</div><p style='color:#9aa4b2'>Method: {explainability['method']}</p>", unsafe_allow_html=True)
+        st.markdown(f"<div class='card'><div class='section-title'>Surrogate-Model SHAP Explainability</div><p style='color:#9aa4b2'>Method: {explainability['method']}</p>", unsafe_allow_html=True)
+        if explainability.get("fidelity"):
+            fid = explainability["fidelity"]
+            st.caption(f"Surrogate Fidelity: Acc = {fid['accuracy']}% | Bal Acc = {fid['balanced_accuracy']}% | Macro F1 = {fid['macro_f1']}")
         fig = plot_explainability_bars(explainability)
         if fig is not None:
             st.plotly_chart(fig, use_container_width=True)
@@ -415,6 +411,8 @@ def render_analysis_page(analysis: dict[str, Any], result: dict[str, Any], model
     latest, _ = get_latest_baseline(final_results_df)
     render_risk_intelligence(analysis, latest=latest)
     render_what_if_simulation(analysis, latest)
+
+
 def render_recommendations_page(analysis: dict[str, Any], result: dict[str, Any]) -> None:
     final_results_df = result.get("final_results_df")
     latest, baseline = get_latest_baseline(final_results_df)
@@ -422,7 +420,7 @@ def render_recommendations_page(analysis: dict[str, Any], result: dict[str, Any]
     with top_col:
         render_card("Top Recommendation", str((analysis.get("recommendations") or ["Maintain a balanced routine."])[0]), "Highest-priority action", status_color(str(analysis.get("state", "Baseline"))))
     with future_col:
-        render_card("Future Risk Prediction", build_future_risk_text(analysis, result.get("transition_matrix")), "HMM transition outlook", WARNING)
+        render_card("Future State Prediction", build_future_risk_text(analysis, result.get("transition_matrix")), "HMM transition outlook", WARNING)
     left, right = st.columns([1.0, 1.0])
     with left:
         st.markdown("<div class='card'><div class='section-title'>Personalized Actions</div>", unsafe_allow_html=True)
@@ -430,8 +428,8 @@ def render_recommendations_page(analysis: dict[str, Any], result: dict[str, Any]
             st.markdown(f"- {action}")
         st.markdown("</div>", unsafe_allow_html=True)
     with right:
-        st.markdown("<div class='card'><div class='section-title'>Environment-Aware Advice</div>", unsafe_allow_html=True)
-        render_environment_cards(analysis.get("environment", {}))
+        st.markdown("<div class='card'><div class='section-title'>Physiological Metrics Summary</div>", unsafe_allow_html=True)
+        render_environment_cards(latest if latest is not None else {})
         st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -445,16 +443,16 @@ def main() -> None:
         selected_model_label = st.radio("Model", ["KMeans + HMM", "GMM + HMM"], horizontal=True)
     selected_model = MODEL_LABELS[selected_model_label]
     render_app_header(selected_model_label, page)
-    active_df, city, run_clicked = render_upload_controls()
+    active_df, run_clicked = render_upload_controls()
     if active_df is None:
         st.info("Upload a CSV or use the sample dataset to activate the dashboard.")
         return
-    if run_clicked or dataframe_key(active_df) != st.session_state.get("last_data_key") or st.session_state.get("last_city") != city:
+    if run_clicked or dataframe_key(active_df) != st.session_state.get("last_data_key"):
         with st.spinner(f"Running {selected_model_label} pipeline..."):
-            result = load_model(active_df, city, selected_model)
+            result = load_model(active_df, selected_model)
     else:
-        cache_key = f"{CACHE_SCHEMA_VERSION}:{selected_model}:{city.strip().lower()}:{dataframe_key(active_df)}"
-        result = st.session_state["model_cache"].get(cache_key) or load_model(active_df, city, selected_model)
+        cache_key = f"{CACHE_SCHEMA_VERSION}:{selected_model}:{dataframe_key(active_df)}"
+        result = st.session_state["model_cache"].get(cache_key) or load_model(active_df, selected_model)
     analysis = result.get("analysis_result", {})
     output_csv = result.get("final_results_df")
     topbar_left, topbar_right = st.columns([1.1, 0.9])
@@ -473,21 +471,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -6,13 +6,11 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-
 ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
 from app.dashboard_utils import apply_dashboard_theme, render_environment_cards, render_state_metrics
-
 
 st.set_page_config(page_title="Recommendations", layout="wide")
 apply_dashboard_theme()
@@ -22,13 +20,12 @@ final_results_df = st.session_state.get("final_results_df")
 transition_matrix = st.session_state.get("transition_matrix")
 
 st.title("Recommendations")
-st.caption("Action engine driven by physiological state, trend, and environment context.")
+st.caption("Action engine driven by physiological state and longitudinal trend signals.")
 
 
 def build_personalized_actions(analysis: dict, latest_row: pd.Series | None) -> list[str]:
     actions: list[str] = []
     state = str(analysis.get("state", "Unknown"))
-    environment = analysis.get("environment", {}) or {}
 
     sleep_hours = float(latest_row.get("sleep_duration_hours", 0.0)) if latest_row is not None else 0.0
     steps = float(latest_row.get("steps", 0.0)) if latest_row is not None else 0.0
@@ -42,10 +39,6 @@ def build_personalized_actions(analysis: dict, latest_row: pd.Series | None) -> 
         actions.append("Low HRV suggests reduced recovery capacity, so choose rest or light activity.")
     if steps < 4000:
         actions.append("Add light movement such as walking instead of remaining fully sedentary.")
-    if float(environment.get("aqi", 0.0)) >= 4:
-        actions.append("Avoid outdoor activity because current air quality is poor.")
-    if float(environment.get("temperature", 0.0)) > 35:
-        actions.append("Increase hydration and avoid heavy exertion in the heat.")
 
     if not actions:
         actions.append("Maintain your current routine and continue monitoring recovery.")
@@ -70,7 +63,7 @@ def build_reason_lines(analysis: dict, latest_row: pd.Series | None, baseline_ro
         reasons.append("Sleep below baseline increased the urgency of recovery guidance.")
     if latest_hr > baseline_hr:
         reasons.append("Higher resting heart rate suggests added physiological strain.")
-    if analysis.get("trend") == "Increasing Stress":
+    if analysis.get("trend") == "Deteriorating":
         reasons.append("The temporal trend indicates stress is building rather than resolving.")
 
     if not reasons:
@@ -92,8 +85,8 @@ def build_future_risk_text(analysis: dict, transition_frame: pd.DataFrame | None
     return f"You are likely to transition to {next_state} if the current trend continues."
 
 
-if analysis_result is None or st.session_state.get("data") is None:
-    st.warning("Upload dataset first")
+if analysis_result is None or (final_results_df is None and st.session_state.get("active_df") is None):
+    st.warning("Upload dataset first or run analysis from the main dashboard.")
 else:
     ordered = None
     latest = None
@@ -127,7 +120,7 @@ else:
         for reason in build_reason_lines(analysis_result, latest, baseline):
             st.write(f"- {reason}")
     with right:
-        st.subheader("Future Risk")
+        st.subheader("Future Risk Prediction")
         future_text = build_future_risk_text(analysis_result, transition_matrix)
         if "transition to" in future_text.lower() or "strain" in future_text.lower() or "stress" in future_text.lower():
             st.warning(future_text)
@@ -135,8 +128,5 @@ else:
             st.info(future_text)
 
     st.markdown("---")
-    st.subheader("Environment-Aware Advice")
-    render_environment_cards(
-        analysis_result.get("environment", {}),
-        (analysis_result.get("environment_impact") or {}).get("environment_summary"),
-    )
+    st.subheader("Physiological Metrics Summary")
+    render_environment_cards(latest if latest is not None else {})

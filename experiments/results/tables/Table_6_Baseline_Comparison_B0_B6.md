@@ -1,0 +1,11 @@
+# Table 6: Complete Baseline Method Comparison (B0 to B6)
+
+| Baseline_ID   | Description                    |   Silhouette |   Davies_Bouldin |   Calinski_Harabasz | Transition_Entropy_Bits   | Seq_LogLikelihood   |
+|:--------------|:-------------------------------|-------------:|-----------------:|--------------------:|:--------------------------|:--------------------|
+| B0            | Global Raw Physiology (GMM)    |       0.1724 |           1.4804 |             1836.48 | N/A                       | N/A                 |
+| B1            | Personalized Threshold Rule    |       0.0098 |           1.9718 |             1189.35 | N/A                       | N/A                 |
+| B2            | KMeans Raw Features            |       0.205  |           1.7364 |             2545.7  | N/A                       | N/A                 |
+| B3            | KMeans Personalized Deviations |       0.226  |           1.6211 |             2841.41 | N/A                       | N/A                 |
+| B4            | GMM Personalized Deviations    |       0.1944 |           1.4211 |             2284.14 | N/A                       | N/A                 |
+| B5            | GMM + Hard-State HMM           |       0.1944 |           1.4211 |             2284.14 | 0.0000                    | N/A (Discrete)      |
+| B6 (Proposed) | GMM + Continuous Soft HMM      |       0.1944 |           1.4211 |             2284.14 | 0.0                       | 19.9468             |

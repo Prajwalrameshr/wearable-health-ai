@@ -1,0 +1,12 @@
+feature,total_rows,initial_missing_cnt,initial_missing_pct,ffill_cnt,ffill_pct,user_mean_cnt,user_mean_pct,cohort_mean_cnt,cohort_mean_pct,total_imputed_cnt,remaining_missing_cnt,imputation_rank
+spo2_avg_pct,7410,6140,82.86%,382,5.16%,1132,15.28%,4626,62.43%,6140,0,1
+hrv_rmssd_ms,7410,4935,66.6%,518,6.99%,1734,23.4%,2683,36.21%,4935,0,2
+sleep_duration_hours,7410,3859,52.08%,774,10.45%,2883,38.91%,202,2.73%,3859,0,3
+sleep_efficiency,7410,3859,52.08%,774,10.45%,2883,38.91%,202,2.73%,3859,0,4
+sleep_latency_min,7410,3859,52.08%,774,10.45%,2883,38.91%,202,2.73%,3859,0,5
+resting_hr_bpm,7410,2988,40.32%,625,8.43%,2363,31.89%,0,0.0%,2988,0,6
+steps,7410,2633,35.53%,443,5.98%,2190,29.55%,0,0.0%,2633,0,7
+distance_km,7410,2633,35.53%,443,5.98%,2190,29.55%,0,0.0%,2633,0,8
+avg_hr_day_bpm,7410,2606,35.17%,429,5.79%,2177,29.38%,0,0.0%,2606,0,9
+calories_kcal,7410,750,10.12%,122,1.65%,628,8.48%,0,0.0%,750,0,10
+wake_after_sleep_onset_min,7410,0,0.0%,0,0.0%,0,0.0%,0,0.0%,0,0,11

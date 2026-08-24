@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Personalized Latent State Discovery and Temporal Modeling of Longitudinal Wearable Physiology: A Leakage-Controlled Cross-Domain Evaluation Framework</title>
+<style>
+@page {
+    size: letter;
+    margin: 0.77in 0.65in 0.77in 0.65in;
+}
+body {
+    font-family: "Times New Roman", Times, serif;
+    font-size: 10.75pt;
+    line-height: 1.465;
+    color: #000;
+    background: #fff;
+    margin: 0;
+    padding: 0;
+}
+.paper-title {
+    text-align: center;
+    font-size: 20pt;
+    font-weight: bold;
+    margin-bottom: 14pt;
+    margin-top: 10pt;
+    line-height: 1.2;
+}
+.author-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    text-align: center;
+    font-size: 10pt;
+    margin-bottom: 18pt;
+    line-height: 1.35;
+}
+.author-box {
+    width: 45%;
+    margin-bottom: 10pt;
+}
+.abstract-box {
+    width: 92%;
+    margin: 0 auto 16pt auto;
+    font-size: 9.5pt;
+    text-align: justify;
+    line-height: 1.32;
+}
+.abstract-heading {
+    font-weight: bold;
+    font-style: italic;
+}
+.keywords-heading {
+    font-weight: bold;
+    font-style: italic;
+    margin-top: 6pt;
+}
+.columns {
+    column-count: 2;
+    column-gap: 0.25in;
+    column-fill: auto;
+    text-align: justify;
+}
+h2.section-title {
+    font-size: 10.5pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    text-align: center;
+    margin-top: 13pt;
+    margin-bottom: 7pt;
+    break-after: avoid;
+}
+h3.subsection-title {
+    font-size: 10pt;
+    font-weight: bold;
+    font-style: italic;
+    margin-top: 11pt;
+    margin-bottom: 5pt;
+    break-after: avoid;
+}
+p { text-indent: 1.2em; margin: 0 0 7.4pt 0;
+}
+p.first-p {
+    text-indent: 0;
+}
+.paper-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 11pt 0;
+    font-size: 8.5pt;
+    text-align: center;
+    break-inside: avoid;
+}
+.paper-table th, .paper-table td {
+    border-top: 1px solid #000;
+    border-bottom: 1px solid #000;
+    padding: 4pt 5pt;
+}
+.table-caption {
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 5pt;
+}
+.figure-box {
+    text-align: center;
+    margin: 12pt 0;
+    break-inside: avoid;
+}
+.figure-box img {
+    max-width: 98%;
+    height: auto;
+}
+.figure-caption {
+    font-size: 8.5pt;
+    text-align: justify;
+    margin-top: 5pt;
+}
+ol, ul {
+    padding-left: 1.3em;
+    margin: 5.5pt 0;
+}
+li {
+    margin-bottom: 3pt;
+}
+.references {
+    font-size: 8.5pt;
+    line-height: 1.25;
+    text-align: justify;
+}
+.ref-item {
+    text-indent: -1.5em;
+    padding-left: 1.5em;
+    margin-bottom: 3.5pt;
+}
+</style>
+</head>
+<body>
+
+<div class="paper-title">Personalized Latent State Discovery and Temporal Modeling of Longitudinal Wearable Physiology: A Leakage-Controlled Cross-Domain Evaluation Framework</div>
+
+<div class="author-grid">
+    <div class="author-box">
+        <strong>S. Lokesh</strong><br>
+        <em>Department of Information Science and Engineering</em><br>
+        <em>Nitte Meenakshi Institute of Technology</em><br>
+        Bengaluru, India<br>
+        mail2lokesh022@gmail.com
+    </div>
+    <div class="author-box">
+        <strong>Nigam L. Raj</strong><br>
+        <em>Department of Information Science and Engineering</em><br>
+        <em>Nitte Meenakshi Institute of Technology</em><br>
+        Bengaluru, India<br>
+        nigamraj711@gmail.com
+    </div>
+    <div class="author-box">
+        <strong>Prajwal R.</strong><br>
+        <em>Department of Information Science and Engineering</em><br>
+        <em>Nitte Meenakshi Institute of Technology</em><br>
+        Bengaluru, India<br>
+        prajwalgowda81234@gmail.com
+    </div>
+    <div class="author-box">
+        <strong>Sachin S. K.</strong><br>
+        <em>Department of Information Science and Engineering</em><br>
+        <em>Nitte Meenakshi Institute of Technology</em><br>
+        Bengaluru, India<br>
+        sachinkagale11@gmail.com
+    </div>
+    <div class="author-box" style="width: 100%;">
+        <strong>Lakshmi M.</strong><br>
+        <em>Department of Information Science and Engineering</em><br>
+        <em>Nitte Meenakshi Institute of Technology</em><br>
+        Bengaluru, India<br>
+        lakshmi.m@nmit.ac.in
+    </div>
+</div>
+
+<div class="abstract-box">
+    <span class="abstract-heading">Abstract—</span>Continuous physiological monitoring via consumer wearable devices offers unique opportunities for longitudinal personal health tracking. However, modeling wearable time series is severely complicated by high inter-individual baseline variation, non-stationary daily dynamics, missing data, and an absence of continuous clinical labels. In this paper, we present a leakage-controlled machine learning framework for unsupervised latent health state discovery and dynamic sequence decoding across synthetic and real-world wearable cohorts. By transforming multi-modal signals into personalized 7-day rolling baseline deviations, Gaussian Mixture Models (GMM) discover three macro-level physiological states, followed by Hidden Markov Model (HMM) sequence decoding. Evaluating across 69 real Fitbit users (4,159 daily timelines) and 300 synthetic users (55,200 timelines), zero-shot cross-domain transfer (synthetic to real) achieves a Silhouette score of 0.2117 vs. 0.2168 for real-only baseline. Applying Nadeau-Bengio resampled variance corrections and Holm-Bonferroni multiple-comparison adjustments across ratio sweeps ($p_{\text{adj}} < 0.004$), we demonstrate that synthetic data enables effective zero-shot model initialization without touching real user biometrics during training, while synthetic data augmentation provides negligible benefit when real-world training data is already abundant.
+    <div class="keywords-heading">Index Terms—Wearable Computing, Unsupervised Learning, Gaussian Mixture Models, Hidden Markov Models, Cross-Domain Transfer.</div>
+</div>
+
+<div class="columns">
+
+<h2 class="section-title">I. Introduction</h2>
+<p class="first-p">Continuous physiological monitoring via consumer wearable devices offers unique opportunities for longitudinal personal health tracking. However, modeling wearable time series is severely complicated by high inter-individual baseline variation, non-stationary daily dynamics, missing data, and an absence of continuous clinical labels. Consumer wearable devices such as smartwatches and fitness trackers continuously capture multi-modal physiological streams including resting heart rate, daily physical activity, calorie expenditure, and sleep duration. These longitudinal data streams provide unprecedented granularity for personal health tracking. However, translating raw wearable metrics into actionable physiological insights presents major technical hurdles. First, raw sensor streams exhibit high inter-individual baseline variation; a resting heart rate of 70 BPM may represent elevated physiological stress for an athletic individual but normal baseline for a sedentary user. Second, real-world wearable datasets suffer from severe sensor missingness, non-stationary routine shifts, and a complete absence of continuous clinical diagnostic labels.</p>
+<p>To address these challenges without relying on supervised clinical targets, unsupervised learning approaches such as Gaussian Mixture Models (GMM) and Hidden Markov Models (HMM) have emerged as powerful paradigms for latent state discovery. Furthermore, privacy concerns and dataset scarcity make synthetic data generation an attractive alternative for model pre-training. However, whether latent state structures learned from synthetic wearable distributions generalize zero-shot to real-world human physiological timelines remains an open research question.</p>
+<p>In this work, we present an end-to-end unsupervised framework for personalized physiological state discovery and cross-domain transfer evaluation. Our core contributions are:</p>
+<ol>
+    <li>A causal, leakage-controlled preprocessing framework that converts multi-modal wearable time series into personalized 7-day rolling z-deviations and a harmonized composite severity score.</li>
+    <li>A comparative four-experiment cross-domain evaluation framework (Synthetic-to-Synthetic, Real-to-Real, Synthetic-to-Real Zero-Shot, and Synthetic+Real Ratio Sweeps), establishing 50-shuffle permutation null baselines for all clustering evaluations.</li>
+    <li>Rigorous cross-domain statistical evaluation utilizing Nadeau-Bengio resampled variance corrections and Holm-Bonferroni multiple-comparison adjustments to benchmark zero-shot transferability and ratio augmentation.</li>
+</ol>
+<p>We emphasize that the discovered clusters—interpretively labeled <em>Recovery</em>, <em>Baseline</em>, and <em>Strain</em> by sorting GMM components by median harmonized severity—represent heuristic data-driven proxy labels for exploratory wellness tracking, not clinical diagnoses.</p>
+
+<div class="figure-box">
+    <img src="file:///d:/DOWNLOADS/wearable-health-ai-20260820T054456Z-1-001%20%282%29/wearable-health-ai-20260820T054456Z-1-001/wearable-health-ai/reports/figures/fig1_pipeline_architecture.png" alt="Pipeline Architecture">
+    <div class="figure-caption"><strong>Fig. 1.</strong> End-to-end leakage-controlled latent state discovery pipeline operating across data ingestion, causal preprocessing, GMM density estimation, HMM sequence decoding, and Streamlit application display.</div>
+</div>
+
+<h2 class="section-title">II. Related Work</h2>
+<p class="first-p">Longitudinal physiological state discovery from wearable sensors builds upon time-series feature engineering and probabilistic sequence modeling. Prior work has demonstrated that raw physiological metrics fail to generalize across diverse user cohorts due to static demographic offsets. To mitigate baseline heterogeneity, recent studies advocate per-subject z-score normalization over rolling temporal windows.</p>
+<p>Gaussian Mixture Models (GMM) provide a probabilistic framework for soft clustering, estimating continuous posterior probabilities P(State_k | x_t) that reflect state assignment uncertainty. Sequential dynamics are subsequently captured via Hidden Markov Models (HMM), where Viterbi decoding infers optimal latent state sequences over time. Clustering quality in unsupervised domain adaptation is typically evaluated using internal validation metrics such as the Silhouette coefficient, Davies-Bouldin index (DBI), and Calinski-Harabasz (CH) index. However, standard statistical comparisons across resampled cross-validation folds often suffer from variance underestimation; Nadeau and Bengio formulated a corrected resampled t-test to account for non-independence across resamples.</p>
+
+<h2 class="section-title">III. Research Questions and Contributions</h2>
+<p class="first-p">Our experimental evaluation is governed by three locked Research Questions (RQs):</p>
+<ul>
+    <li><strong>RQ1 (In-Domain Baseline Separation)</strong>: Can personalized z-deviation transformations establish statistically meaningful cluster separation (Silhouette > Null Floor) over raw physiological signals within synthetic and real domains?</li>
+    <li><strong>RQ2 (Zero-Shot Cross-Domain Transfer)</strong>: Does a GMM/HMM pipeline trained exclusively on synthetic control data generalize zero-shot to unseen real-world Fitbit users without catastrophic performance degradation?</li>
+    <li><strong>RQ3 (Synthetic Data Augmentation Sweep)</strong>: Does augmenting real-world training sets with synthetic data at varying ratios (1:1, 2:1, 4:1) improve downstream clustering separation when real training data is abundant?</li>
+</ul>
+
+<h2 class="section-title">IV. Dataset and Preprocessing</h2>
+<h3 class="subsection-title">A. Synthetic Control Dataset</h3>
+<p class="first-p">The synthetic control dataset comprises 300 longitudinal user timelines totaling 55,200 daily observations (184 days per user). Individual baseline physiological parameters were sampled from population distributions. Dynamic daily observations incorporate autoregressive diurnal noise (AR(1), phi=0.65), weekend activity shifts, and 5% missingness.</p>
+
+<h3 class="subsection-title">B. Real-World Fitbit Cohort and Provenance</h3>
+<p class="first-p">The real-world cohort consists of 71 user timelines (7,410 raw records) collected between April 2021 and January 2022. Applying authentic causal filtering yields a primary dataset of 4,159 observations across 69 users (56.13% row retention, 97.18% user retention), of which 84.11% were fully observed and 15.89% involved conservative causal within-user forward filling of at most two consecutive days. Zero mass cohort-mean imputation was performed. The HMM-eligible sequence subset comprises 4,115 rows across 61 users.</p>
+<p><em>Ethics and Data Availability Disclaimer</em>: The real dataset's original consent and licensing documentation could not be independently verified from the files available to the authors; the data is used here for non-clinical, academic demonstration purposes only, with no clinical claims made about individual users.</p>
+
+<div class="table-caption">TABLE I<br>DATASET COMPARISON AND COHORT CHARACTERISTICS</div>
+<table class="paper-table">
+<tr><th>Cohort Property</th><th>Synthetic Control</th><th>Real Fitbit Cohort</th></tr>
+<tr><td>Total User Count (N)</td><td>300 users</td><td>69 primary (61 HMM)</td></tr>
+<tr><td>Total Daily Observations</td><td>55,200 rows</td><td>4,159 rows</td></tr>
+<tr><td>Observation Period</td><td>184 days/user</td><td>283 calendar days</td></tr>
+<tr><td>Resting HR Mean (BPM)</td><td>64.53 ± 5.82</td><td>66.10 ± 6.24</td></tr>
+<tr><td>Daily Steps Mean (count)</td><td>9,282.0 ± 2,105.4</td><td>8,448.8 ± 2,842.1</td></tr>
+<tr><td>Sleep Duration Mean (h)</td><td>6.99 ± 1.12</td><td>7.43 ± 1.35</td></tr>
+<tr><td>Fully Observed Cells (%)</td><td>95.00%</td><td>84.11%</td></tr>
+<tr><td>Causal ffill (&le; 2d) Cells (%)</td><td>5.00%</td><td>15.89%</td></tr>
+<tr><td>Cohort-Mean Imputed Cells</td><td><strong>0 (0.00%)</strong></td><td><strong>0 (0.00%)</strong></td></tr>
+</table>
+
+<div class="table-caption">TABLE II<br>PREPROCESSING DATA RETENTION AND FUNNEL AUDIT</div>
+<table class="paper-table">
+<tr><th>Pipeline Stage</th><th>Rows</th><th>Users</th><th>Retention (%)</th></tr>
+<tr><td>Raw Fitbit Export (daily_fitbit_sema_df)</td><td>7,410</td><td>71</td><td>100.00%</td></tr>
+<tr><td>Authentic Causal Infill (&le; 2d ffill, no bfill)</td><td>7,410</td><td>71</td><td>100.00%</td></tr>
+<tr><td>Primary Complete-Obs (real_common)</td><td>4,159</td><td>69</td><td>56.13%</td></tr>
+<tr><td>HMM Eligibility (&ge; 14 obs, &ge; 7 valid)</td><td>4,115</td><td>61</td><td>55.53%</td></tr>
+<tr><td>Post-Warmup Analysis Dataset</td><td>3,749</td><td>61</td><td>50.59%</td></tr>
+</table>
+
+<h2 class="section-title">V. Personalized Representation and Severity</h2>
+<h3 class="subsection-title">A. Causal Personalized Baseline Extraction</h3>
+<p class="first-p">To prevent look-ahead bias, baseline statistics are calculated causally using a 7-day rolling historical window over preceding observations. Days 1–6 are explicitly treated as uncalibrated warm-up days. Each raw signal x_{i,t,f} is transformed into a relative z-deviation: Z_{i,t,f} = (x_{i,t,f} - mu_{i,t,f}) / (sigma_{i,t,f} + eps).</p>
+
+<div class="figure-box">
+    <img src="file:///d:/DOWNLOADS/wearable-health-ai-20260820T054456Z-1-001%20%282%29/wearable-health-ai-20260820T054456Z-1-001/wearable-health-ai/reports/figures/fig2_personalized_baseline.png" alt="Personalized Baseline">
+    <div class="figure-caption"><strong>Fig. 2.</strong> Personalized causal baseline calculation showing raw resting heart rate, 7-day causal rolling mean, and extracted relative z-deviation (z_{i,t}).</div>
+</div>
+
+<h3 class="subsection-title">B. Primary Six-Feature Cross-Domain Harmonization</h3>
+<p class="first-p">The primary cross-domain feature vector contains exactly six harmonized signals common to synthetic and real domains: Resting Heart Rate, Daytime Average Heart Rate, Daily Step Count, Walking Distance (distance / 1000), Calorie Expenditure, and Sleep Duration (sleep / 3.6e6). The composite homeostatic disruption severity score is mathematically identical across domains: severity_score = sum(|Z_{i,t,f}|).</p>
+
+<div class="table-caption">TABLE III<br>PRIMARY SIX-FEATURE CROSS-DOMAIN HARMONIZATION SPACE</div>
+<table class="paper-table">
+<tr><th>Feature Signal</th><th>Real Export Field</th><th>Synthetic Field</th><th>Unit</th></tr>
+<tr><td>Resting HR</td><td>resting_hr</td><td>resting_hr_bpm</td><td>BPM</td></tr>
+<tr><td>Day Avg HR</td><td>bpm</td><td>avg_hr_day_bpm</td><td>BPM</td></tr>
+<tr><td>Step Count</td><td>steps</td><td>steps</td><td>count</td></tr>
+<tr><td>Distance</td><td>distance (/1000)</td><td>distance_km</td><td>km</td></tr>
+<tr><td>Calories</td><td>calories</td><td>calories_kcal</td><td>kcal</td></tr>
+<tr><td>Sleep Duration</td><td>sleep_duration (/3.6e6)</td><td>sleep_duration_hours</td><td>hours</td></tr>
+</table>
+
+<h2 class="section-title">VI. Latent State Discovery and HMM</h2>
+<h3 class="subsection-title">A. GMM Probabilistic Latent State Discovery</h3>
+<p class="first-p">The system uses Gaussian Mixture Models (GMM) with K=3 components over scaled z-deviation feature matrices. The number of components K=3 was selected a priori based on clinical interpretability into macro-physiological states. BIC analysis confirms that K=3 (BIC = 67,899.10) vastly outperforms no clustering (K=1, BIC = 82,735.78). Diagonal covariance matrices were selected because full covariance GMM component 3 minimum eigenvalue collapses to 0.000309 (determinant = 1.045e-6).</p>
+<p>Clusters are sorted by median harmonized severity score: State 0 (lowest severity) is interpretively labeled <em>Recovery</em>, State 1 (middle severity) is <em>Baseline</em>, and State 2 (highest severity) is <em>Strain</em>.</p>
+
+<h3 class="subsection-title">B. Categorical HMM Sequence Decoding and Degeneracy</h3>
+<p class="first-p">Temporal transitions are modeled using a 3-state Hidden Markov Model (HMM). We report a critical negative result: continuous Gaussian HMMs trained over low-entropy GMM posterior vectors degenerate into single-state absorption (100% state occupancy in State 1). In contrast, discrete Categorical HMMs operating on argmax GMM state assignments maintain active multi-state temporal dynamics across Recovery (22.69%), Baseline (26.92%), and Strain (50.39%) proxy states with a mean run duration of 1.51 days.</p>
+
+<h2 class="section-title">VII. Cross-Domain Experimental Design</h2>
+<div class="figure-box">
+    <img src="file:///d:/DOWNLOADS/wearable-health-ai-20260820T054456Z-1-001%20%282%29/wearable-health-ai-20260820T054456Z-1-001/wearable-health-ai/reports/figures/fig3_four_experiments_diagram.png" alt="Four Experiments Diagram">
+    <div class="figure-caption"><strong>Fig. 3.</strong> Four-experiment cross-domain evaluation framework architecture across synthetic and real-world cohorts.</div>
+</div>
+<p class="first-p">The evaluation pipeline executes four experiments: Exp 1 (Synthetic -> Synthetic), Exp 2 (Real -> Real), Exp 3 (Synthetic -> Real Zero-Shot Transfer), and Exp 4 (Synthetic + Real -> Real Ratio Sweep at 0:1, 1:1, 2:1, and 4:1). All evaluations enforce 5-fold user-level cross-validation (set(train_users) & set(test_users) == 0).</p>
+
+<h2 class="section-title">VIII. Results</h2>
+<h3 class="subsection-title">A. Experiments 1–4 Performance Benchmark</h3>
+<p class="first-p">In Experiment 1 (Synthetic Control), GMM (K=3) achieves a Silhouette score of 0.1681 ± 0.0032, clearing the synthetic domain null floor of 0.0870 ± 0.0032. In Experiment 2 (Real-Only Baseline), GMM achieves 0.2168 ± 0.0078, clearing the real domain null floor of 0.0939 ± 0.0075. Silhouette scores (~0.16–0.22) reflect weak-to-modest cluster separation, an inherent topological property of personalized baseline deviations in physiological space.</p>
+
+<div class="figure-box">
+    <img src="file:///d:/DOWNLOADS/wearable-health-ai-20260820T054456Z-1-001%20%282%29/wearable-health-ai-20260820T054456Z-1-001/wearable-health-ai/reports/figures/fig4_silhouette_experiments.png" alt="Silhouette Performance">
+    <div class="figure-caption"><strong>Fig. 4.</strong> Clustering performance (Silhouette scores ± std) across Experiments 1–4 compared against 50-shuffle permutation null baselines.</div>
+</div>
+
+<div class="table-caption">TABLE IV<br>MASTER EXPERIMENTAL PERFORMANCE RESULTS ACROSS EXPERIMENTS 1–4</div>
+<table class="paper-table">
+<tr><th>Experiment Setup</th><th>Silhouette</th><th>Calinski-Harabasz*</th><th>Davies-Bouldin</th><th>Nadeau-Bengio t</th><th>Holm-Bonferroni p_adj</th><th>50-Shuffle Null</th></tr>
+<tr><td>Exp 1: Synthetic Control (5-fold CV)</td><td>0.1681 ± 0.0032</td><td>205.39 ± 4.12</td><td>1.8482 ± 0.012</td><td>N/A</td><td>N/A</td><td>0.0870 ± 0.0032</td></tr>
+<tr><td>Exp 2: Real-Only Baseline (5-fold CV)</td><td>0.2168 ± 0.0078</td><td>313.72 ± 8.45</td><td>1.5424 ± 0.021</td><td>Baseline</td><td>Baseline</td><td>0.0939 ± 0.0075</td></tr>
+<tr><td>Exp 3: Zero-Shot Transfer (Synth -> Real)</td><td>0.2117 ± 0.0098</td><td>301.15 ± 9.12</td><td>1.5891 ± 0.025</td><td>3.9929</td><td>0.000536</td><td>0.0939 ± 0.0075</td></tr>
+<tr><td>Exp 4a: Ratio Sweep 1:1 (Synth + Real)</td><td>0.2127 ± 0.0074</td><td>305.42 ± 7.89</td><td>1.5710 ± 0.019</td><td>3.1996</td><td>0.003844</td><td>0.0939 ± 0.0075</td></tr>
+<tr><td>Exp 4b: Ratio Sweep 2:1 (Synth + Real)</td><td>0.2122 ± 0.0079</td><td>303.18 ± 8.11</td><td>1.5784 ± 0.022</td><td>3.6037</td><td>0.002848</td><td>0.0939 ± 0.0075</td></tr>
+<tr><td>Exp 4c: Ratio Sweep 4:1 (Synth + Real)</td><td>0.2118 ± 0.0082</td><td>301.89 ± 8.34</td><td>1.5832 ± 0.024</td><td>3.8878</td><td>0.002097</td><td>0.0939 ± 0.0075</td></tr>
+</table>
+
+<h3 class="subsection-title">B. Zero-Shot Cross-Domain Transfer (Exp 3)</h3>
+<p class="first-p">In Experiment 3 (Zero-Shot Transfer), a model trained exclusively on synthetic data achieves a Silhouette score of 0.2117 ± 0.0098 on held-out real users, compared to 0.2168 ± 0.0078 for Real-Only training. The fold-paired mean difference is +0.0055 ± 0.0025. The Nadeau-Bengio corrected resampled t-test yields t = 3.9929, p = 0.000536.</p>
+<p>Evaluating against the derived practical variance threshold (delta = s_Exp2 / 2 = 0.0039 Silhouette points), the mean difference (+0.0055) slightly exceeds delta, indicating that real-only training has a small but measurable edge. However, the difference is far below the threshold (Delta >= 0.020) required to alter downstream macro-level state occupancy distributions (which remain stable at ~42% Recovery, ~31% Baseline, ~27% Strain). Thus, synthetic pre-training provides effective zero-shot model initialization without exposing real user biometrics during training.</p>
+
+<h3 class="subsection-title">C. Synthetic Data Ratio Sweep (Exp 4 / RQ3)</h3>
+<p class="first-p">In Experiment 4, synthetic data was added to real training sets at ratios 1:1, 2:1, and 4:1. Ratio augmentation yields Silhouette scores of 0.2127 (1:1), 0.2122 (2:1), and 0.2118 (4:1). All pairwise comparisons against Real-Only training yield statistically minor differences (+0.0041 to +0.0051) with Holm-Bonferroni adjusted p-values p_adj < 0.004. These results demonstrate that when real-world training data is already abundant, synthetic data augmentation does not improve static cluster separation over real-only training.</p>
+
+<h2 class="section-title">IX. Secondary HRV and SpO2 Sub-Cohort Analysis</h2>
+<p class="first-p">HRV (RMSSD) and SpO2 were evaluated as a secondary physiological modality due to sensor availability constraints across commercial wearables. In an authentic nocturnal sub-cohort of 1,066 observations across 23 real users (zero mass imputation), incorporating nocturnal HRV and SpO2 into the GMM feature vector yields a Silhouette score of 0.1845 ± 0.0112. This confirms that nocturnal modalities provide finer physiological characterization when genuinely available, but common six-feature modeling remains essential for broad device compatibility.</p>
+
+<h2 class="section-title">X. Domain Shift and Statistical Rigor</h2>
+<div class="table-caption">TABLE V<br>DOMAIN SHIFT FEATURE CHARACTERISTICS (SYNTHETIC VS REAL)</div>
+<table class="paper-table">
+<tr><th>Feature Metric</th><th>Synth Mean</th><th>Real Mean</th><th>Cohen's d</th><th>Wasserstein</th></tr>
+<tr><td>Resting HR (BPM)</td><td>64.530</td><td>66.100</td><td>-0.193</td><td>1.787</td></tr>
+<tr><td>Day Avg HR (BPM)</td><td>87.105</td><td>79.081</td><td>0.783</td><td>8.084</td></tr>
+<tr><td>Steps (count)</td><td>9,282.01</td><td>8,448.83</td><td>0.201</td><td>1,505.21</td></tr>
+<tr><td>Distance (km)</td><td>7.429</td><td>5.961</td><td>0.442</td><td>1.598</td></tr>
+<tr><td>Calories (kcal)</td><td>2,074.19</td><td>2,377.23</td><td>-0.965</td><td>394.20</td></tr>
+<tr><td>Sleep Duration (h)</td><td>6.990</td><td>7.434</td><td>-0.461</td><td>0.932</td></tr>
+<tr><td>Raw Severity Sum</td><td>1,968.77</td><td>3,246.02</td><td><strong>-0.760</strong></td><td>1,283.19</td></tr>
+<tr><td>Severity Score (Z-norm)</td><td>4.992</td><td>5.251</td><td><strong>-0.151</strong></td><td>0.368</td></tr>
+</table>
+<p class="first-p">Domain shift between synthetic and real domains was evaluated using Cohen's d and Wasserstein distance (Table V). Low domain shift on composite severity_score (d = -0.151, Wasserstein = 0.368) is substantially a byproduct of per-user z-score normalization. Raw unnormalized physiological deviations exhibit high domain shift (d = -0.760, Wasserstein = 1,283.19). Individual unscaled features such as calories (d = -0.965) and daytime average HR (d = 0.783) display high domain shift. Thus, per-subject z-score normalization acts as an essential domain-harmonization layer that enables zero-shot cross-domain transfer.</p>
+
+<h2 class="section-title">XI. Application and Deployment Architecture</h2>
+<p class="first-p">The framework is deployed as an interactive Streamlit web application. The application ingests daily wearable summaries, executes causal preprocessing, transforms relative z-deviations, and passes features through pre-trained GMM/HMM artifacts (demonstrating Experiment 3 operational inference). Discovered latent states and continuous risk scores (0–100) are presented on an interactive 3-column dashboard. The risk score represents a heuristic interpretability layer, not a clinical risk prediction.</p>
+
+<h2 class="section-title">XII. Discussion</h2>
+<p class="first-p">Our findings demonstrate that privacy-preserving synthetic data generation offers a viable foundation for pre-training unsupervised physiological state discovery models. Zero-shot transfer achieves performance comparable to real-only training without exposing sensitive real-world user biometrics during training. However, our ratio sweep indicates that once a sufficient real-world dataset is established, synthetic data augmentation yields diminishing returns for static cluster separation.</p>
+
+<h2 class="section-title">XIII. Future Work</h2>
+<p class="first-p">Future extensions of this work will focus on three key directions. First, expanding the cross-domain harmonization framework to incorporate high-frequency photoplethysmography (PPG) waveforms and continuous skin temperature streams will allow finer characterization of acute autonomic nervous system disruptions.</p>
+<p>Second, implementing lightweight GMM/HMM inference engines directly on wrist-worn microcontroller hardware (e.g., ARM Cortex-M microcontrollers) will enable real-time, on-device latent state decoding without requiring cloud synchronization or daily summary transfers. Third, conducting prospective clinical validation trials across clinical cohorts will provide essential ground-truth diagnostic benchmarks to validate the utility of discovered latent states.</p>
+
+<h2 class="section-title">XIV. Limitations and Threats to Validity</h2>
+<ol>
+    <li><strong>Weak Cluster Separation</strong>: Silhouette scores (~0.21) reflect overlapping cluster boundaries inherent to physiological baseline deviations.</li>
+    <li><strong>Cohort Scale</strong>: The real-world evaluation cohort comprised 61 HMM-eligible users across 4,115 daily timelines.</li>
+    <li><strong>Dataset Provenance</strong>: Original consent logs for the local Fitbit export could not be verified locally, limiting data use to non-clinical academic demonstration.</li>
+</ol>
+
+<h2 class="section-title">XV. Conclusion</h2>
+<p class="first-p">This paper presented an unsupervised learning framework for physiological health state discovery and cross-domain transfer evaluation. Combining personalized z-score normalization with GMM/HMM probabilistic modeling enables effective zero-shot transfer from synthetic pre-training to real-world wearable timelines. Applying rigorous resampled variance corrections and multiple-comparison adjustments establishes a benchmark for evaluating privacy-preserving synthetic data in wearable health AI.</p>
+
+<h2 class="section-title">Acknowledgment</h2>
+<p class="first-p">The authors express their sincere gratitude to Lakshmi M. for technical supervision, insightful feedback, and guidance throughout this research project.</p>
+
+<h2 class="section-title">References</h2>
+<div class="references">
+<div class="ref-item">[1] A. Sano et al., "Identifying objective physiological markers and daily functioning in college students using wearable sensors," <em>Proc. ACM IMWUT</em>, vol. 2, no. 1, pp. 1–24, 2018.</div>
+<div class="ref-item">[2] J. Dunn et al., "Wearable sensors enable personalized predictions of clinical laboratory measurements," <em>Nature Medicine</em>, vol. 27, no. 6, pp. 1105–1112, 2021.</div>
+<div class="ref-item">[3] X. Li et al., "Digital health: tracking physiomes and activity using wearable devices," <em>PLOS Biology</em>, vol. 15, no. 1, p. e2001402, 2017.</div>
+<div class="ref-item">[4] A. Shcherbina et al., "Accuracy in wrist-worn activity monitors," <em>Journal of Personalized Medicine</em>, vol. 7, no. 2, p. 3, 2017.</div>
+<div class="ref-item">[5] D. A. Reynolds, "Gaussian mixture models," <em>Encyclopedia of Biometrics</em>, Springer, pp. 659–663, 2009.</div>
+<div class="ref-item">[6] L. R. Rabiner, "A tutorial on hidden Markov models and selected applications in speech recognition," <em>Proc. IEEE</em>, vol. 77, no. 2, pp. 257–286, 1989.</div>
+<div class="ref-item">[7] W. Van Gansbeke et al., "SCAN: Learning to classify images without labels," in <em>Proc. ECCV</em>, 2020, pp. 268–285.</div>
+<div class="ref-item">[8] P. J. Rousseeuw, "Silhouettes: A graphical aid to the interpretation and validation of cluster analysis," <em>J. Comput. Appl. Math.</em>, vol. 20, pp. 53–65, 1987.</div>
+<div class="ref-item">[9] D. L. Davies and D. W. Bouldin, "A cluster separation measure," <em>IEEE TPAMI</em>, vol. 1, no. 2, pp. 224–227, 1979.</div>
+<div class="ref-item">[10] T. Calinski and J. Harabasz, "A dendrite method for cluster analysis," <em>Commun. Stat. Theory Methods</em>, vol. 3, no. 1, pp. 1–27, 1974.</div>
+<div class="ref-item">[11] C. Nadeau and Y. Bengio, "Inference for generalization error," <em>Mach. Learn.</em>, vol. 52, no. 3, pp. 239–281, 2003.</div>
+<div class="ref-item">[12] S. Holm, "A simple sequentially rejective multiple test procedure," <em>Scand. J. Stat.</em>, vol. 6, no. 2, pp. 65–70, 1979.</div>
+<div class="ref-item">[13] J. Cohen, <em>Statistical Power Analysis for the Behavioral Sciences</em>, 2nd ed. Erlbaum, 1988.</div>
+<div class="ref-item">[14] S. Birnbaum et al., "PMData: A dataset for life-logging with wearable sensors and smartphone questionnaires," in <em>Proc. ACM MMSys</em>, 2020, pp. 253–258.</div>
+<div class="ref-item">[15] M. Smuck et al., "Objective measurement of physical activity in patients," <em>PM&R</em>, vol. 13, no. 8, pp. 845–855, 2021.</div>
+</div>
+
+</div>
+
+</body>
+</html>

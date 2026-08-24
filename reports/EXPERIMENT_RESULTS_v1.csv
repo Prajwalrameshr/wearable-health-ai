@@ -1,0 +1,7 @@
+experiment,condition,mean_silhouette,std_silhouette,ci95_silhouette_lower,ci95_silhouette_upper,mean_calinski_harabasz,mean_davies_bouldin,mean_log_likelihood,mean_recovery_occ_pct,mean_baseline_occ_pct,mean_strain_occ_pct
+Exp1_Synth_to_Synth,Synthetic_Baseline,0.1681,0.0019,0.1654,0.1698,2756.16,1.8481,-8.7826,43.82,28.65,27.54
+Exp2_Real_to_Real,Real_Only_Baseline,0.2168,0.0078,0.2051,0.2242,313.72,1.5369,-8.1297,42.18,30.5,27.32
+Exp3_Synth_to_Real,ZeroShot_Transfer,0.2117,0.0098,0.198,0.2194,283.07,1.5542,-9.0661,42.33,31.0,26.66
+Exp4_Synth_Plus_Real_to_Real,Ratio_1:1,0.2127,0.0089,0.2003,0.2198,290.68,1.5517,-8.7187,42.65,30.92,26.43
+Exp4_Synth_Plus_Real_to_Real,Ratio_2:1,0.2122,0.0093,0.1988,0.2195,287.42,1.553,-8.8624,42.42,30.9,26.68
+Exp4_Synth_Plus_Real_to_Real,Ratio_4:1,0.2118,0.0096,0.1984,0.219,285.56,1.5545,-8.9458,42.3,31.01,26.68

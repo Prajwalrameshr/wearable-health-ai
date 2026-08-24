@@ -5,7 +5,6 @@ from pathlib import Path
 
 import streamlit as st
 
-
 ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
@@ -18,9 +17,8 @@ from app.dashboard_utils import (
     render_recovery_score_trend,
     render_shap_explainability,
     render_time_series,
-    render_transition_heatmap,
+    render_transition_heatmap_view,
 )
-
 
 st.set_page_config(page_title="Analysis", layout="wide")
 apply_dashboard_theme()
@@ -34,8 +32,8 @@ feature_df = st.session_state.get("feature_df")
 st.title("Analysis")
 st.caption("Deep technical insight into clustering, temporal modeling, and explainability.")
 
-if analysis_result is None or st.session_state.get("data") is None:
-    st.warning("Upload dataset first")
+if analysis_result is None or (final_results_df is None and st.session_state.get("active_df") is None):
+    st.warning("Upload dataset first or run analysis from the main dashboard.")
 else:
     st.subheader("Model Performance")
     p1, p2, p3 = st.columns(3)
@@ -55,11 +53,11 @@ else:
     st.markdown("---")
     st.subheader("HMM Transition Matrix")
     st.write("Shows probability of moving between physiological states.")
-    render_transition_heatmap(transition_matrix)
+    render_transition_heatmap_view(transition_matrix)
 
     st.markdown("---")
-    st.subheader("Explainability")
-    render_shap_explainability(final_results_df, analysis_result.get("gmm_feature_influence"))
+    st.subheader("Surrogate-Model SHAP Explainability")
+    render_shap_explainability(final_results_df, analysis_result.get("model_feature_influence"))
 
     st.markdown("---")
     left, right = st.columns(2)

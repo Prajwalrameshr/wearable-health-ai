@@ -1,0 +1,3 @@
+Model Variant,Observation Input,Transition Entropy (bits),Sequence Log-Likelihood,Mean State Duration (days),Transition Stability,Uncertainty Representation
+Hard-State Categorical HMM (B5),Discrete cluster integer,0.0,N/A (Discrete),4.2,0.7619,Discarded via hard argmax
+Proposed Soft-Posterior HMM (B6),Continuous GMM posterior P(S),0.0,19.9468,29.0,1.0,Preserved continuous probability simplex

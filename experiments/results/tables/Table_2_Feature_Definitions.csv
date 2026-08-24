@@ -1,0 +1,11 @@
+Feature Category,Feature Name,Formula / Description
+Raw Physiology,resting_hr_bpm,Resting heart rate in beats per minute
+Raw Physiology,hrv_rmssd_ms,Root mean square of successive differences (HRV)
+Raw Physiology,sleep_duration_hours,Total nightly sleep duration in hours
+Personal Baseline,baseline_hr,7-day causal rolling mean resting HR (min_periods=7)
+Personal Baseline,baseline_hrv,7-day causal rolling mean HRV (min_periods=7)
+Personal Deviation,hr_dev,resting_hr_bpm - baseline_hr
+Personal Deviation,hrv_dev,hrv_rmssd_ms - baseline_hrv
+Normalized Deviation,hr_dev_z,hr_dev / std_hr
+Temporal Slope,hrv_dev_slope_7d,7-day causal rolling linear slope of hrv_dev
+Composite Severity,severity_score,Sum of absolute normalized deviation z-scores

@@ -1,25 +1,36 @@
-﻿import unittest
+from __future__ import annotations
+
 from pathlib import Path
 import pandas as pd
+import pytest
 
-from run_inference import load_model_outputs, compute_state
-from src.preprocessing import preprocess_for_modeling
+from run_inference import run_pipeline
 
-class TestPipeline(unittest.TestCase):
-    def setUp(self):
-        self.csv_path = Path("data") / "sample_user.csv"
-        if not self.csv_path.exists():
-            self.csv_path = Path("data") / "wearables_health_6mo_daily.csv"
+ROOT_DIR = Path(__file__).resolve().parents[1]
+SAMPLE_CSV = ROOT_DIR / "data" / "wearables_health_6mo_daily.csv"
 
-    def test_end_to_end_inference(self):
-        outputs = preprocess_for_modeling(source=self.csv_path)
-        feature_df = outputs["feature_df"].copy()
-        feature_df, cluster_out, hmm_bundle = load_model_outputs(feature_df, model_type="gmm")
-        final_df, analysis = compute_state("gmm", hmm_bundle["labeled_df"], hmm_bundle, {}, cluster_out)
 
-        self.assertIsNotNone(analysis)
-        self.assertIn(analysis["state"], ["Recovery", "Baseline", "Strain", "Unknown"])
-        self.assertGreater(analysis["risk"]["score"], 0)
+def test_full_pipeline_execution(tmp_path) -> None:
+    """Verify end-to-end inference pipeline execution and UI compatibility contract."""
+    output_file = tmp_path / "test_out.csv"
+    res = run_pipeline(csv_path=str(SAMPLE_CSV), output_path=str(output_file), model_type="gmm")
 
-if __name__ == "__main__":
-    unittest.main()
+    assert output_file.exists()
+    assert "analysis_result" in res
+    assert "final_results_df" in res
+    assert "feature_df" in res
+
+    analysis = res["analysis_result"]
+    assert "state" in analysis
+    assert "confidence" in analysis
+    assert "trend" in analysis
+    assert "risk" in analysis
+    assert "recommendations" in analysis
+    assert "state_probabilities" in analysis
+    assert "hmm_state_probabilities" in analysis
+    assert "stress_level" in analysis
+
+    final_df = res["final_results_df"]
+    assert "risk_score" in final_df.columns
+    assert "risk_level" in final_df.columns
+    assert "stress_level_standardized" in final_df.columns

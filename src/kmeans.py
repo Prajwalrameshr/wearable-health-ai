@@ -11,7 +11,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score, silhouette_score
 
 STANDARD_STATES = ["Recovery", "Baseline", "Strain"]
-DEFAULT_K_RANGE = range(2, 5)
+DEFAULT_K_RANGE = range(2, 6)
 DEFAULT_KMEANS_FEATURES = ["hr_dev", "hrv_dev", "sleep_dev", "severity_score"]
 MODEL_DIR = Path(__file__).resolve().parents[1] / "models"
 
@@ -33,17 +33,21 @@ def compute_elbow_curve(feature_matrix: pd.DataFrame, k_values: range = DEFAULT_
         if len(feature_matrix) < k:
             continue
         model = KMeans(n_clusters=k, n_init=20, random_state=random_state)
-        model.fit(feature_matrix)
-        rows.append({"k": k, "inertia": float(model.inertia_)})
+        labels = model.fit_predict(feature_matrix)
+        sil = float(silhouette_score(feature_matrix, labels)) if len(np.unique(labels)) > 1 else -1.0
+        db = float(davies_bouldin_score(feature_matrix, labels)) if len(np.unique(labels)) > 1 else 999.0
+        rows.append({"k": k, "inertia": float(model.inertia_), "silhouette": sil, "davies_bouldin": db})
     if not rows:
         raise ValueError("Not enough samples to compute elbow curve.")
     return pd.DataFrame(rows)
 
 
 def select_optimal_k(elbow_df: pd.DataFrame) -> int:
+    """Select optimal k maximizing Silhouette score dynamically."""
+    if "silhouette" in elbow_df.columns and not elbow_df["silhouette"].empty:
+        best_k = int(elbow_df.loc[elbow_df["silhouette"].idxmax(), "k"])
+        return best_k
     available_k = elbow_df["k"].astype(int).tolist()
-    if 3 in available_k:
-        return 3
     return int(available_k[0])
 
 
@@ -75,7 +79,7 @@ def summarize_clusters(df: pd.DataFrame, cluster_column: str = "kmeans_cluster",
     elif n_clusters == 1:
         assigned_states = ["Baseline"]
     else:
-        assigned_states = [STANDARD_STATES[min(i, len(STANDARD_STATES) - 1)] for i in range(n_clusters)]
+        assigned_states = [f"State_{i+1}" for i in range(n_clusters)]
 
     summary["cluster_label"] = assigned_states
     severity_rank = {"Recovery": 1, "Baseline": 2, "Strain": 3}
@@ -117,7 +121,7 @@ def compute_metrics(feature_matrix: pd.DataFrame, cluster_labels: np.ndarray, la
 def plot_elbow_curve(elbow_df: pd.DataFrame, output_path: str | Path | None = None) -> Path | None:
     plt.figure(figsize=(7, 4))
     plt.plot(elbow_df["k"], elbow_df["inertia"], marker="o", linewidth=2)
-    plt.title("KMeans Elbow Curve")
+    plt.title("KMeans Model Selection")
     plt.xlabel("Number of Clusters (K)")
     plt.ylabel("Inertia")
     plt.tight_layout()
@@ -138,16 +142,14 @@ def save_model(model: KMeans, model_path: str | Path | None = None) -> Path:
     return target_path
 
 
-def save_kmeans_model(model: KMeans, model_path: str | Path | None = None) -> Path:
-    """Save trained KMeans model to disk."""
-    return save_model(model, model_path=model_path)
-
-
-def load_kmeans_model(model_path: str | Path | None = None) -> KMeans:
-    """Load persisted KMeans model from disk."""
+def load_kmeans_model(model_path: str | Path | None = None) -> KMeans | None:
     target_path = Path(model_path) if model_path is not None else MODEL_DIR / "kmeans.pkl"
-    return joblib.load(target_path)
-
+    if target_path.exists() and target_path.stat().st_size > 0:
+        try:
+            return joblib.load(target_path)
+        except Exception:
+            return None
+    return None
 
 
 def run_kmeans_pipeline(
@@ -157,22 +159,33 @@ def run_kmeans_pipeline(
     random_state: int = 42,
     elbow_plot_path: str | Path | None = None,
     model_path: str | Path | None = None,
-    save_trained_model: bool = False,
+    save_trained_model: bool = True,
+    fitted_model: KMeans | None = None,
 ) -> dict[str, Any]:
     selected_columns = DEFAULT_KMEANS_FEATURES if feature_columns is None else feature_columns
     feature_matrix = prepare_kmeans_features(df, feature_columns=selected_columns)
     aligned_df = df.loc[feature_matrix.index].copy()
-    elbow_df = compute_elbow_curve(feature_matrix, k_values=k_values, random_state=random_state)
-    optimal_k = select_optimal_k(elbow_df)
-    plot_path = plot_elbow_curve(elbow_df, output_path=elbow_plot_path)
-    model = fit_kmeans(feature_matrix, n_clusters=optimal_k, random_state=random_state)
-    cluster_labels = model.labels_
+
+    if fitted_model is None:
+        elbow_df = compute_elbow_curve(feature_matrix, k_values=k_values, random_state=random_state)
+        optimal_k = select_optimal_k(elbow_df)
+        plot_path = plot_elbow_curve(elbow_df, output_path=elbow_plot_path)
+        model = fit_kmeans(feature_matrix, n_clusters=optimal_k, random_state=random_state)
+        cluster_labels = model.labels_
+    else:
+        model = fitted_model
+        optimal_k = model.n_clusters
+        elbow_df = pd.DataFrame([{"k": optimal_k, "inertia": float(model.inertia_)}])
+        plot_path = None
+        cluster_labels = model.predict(feature_matrix)
+
     unlabeled_df = aligned_df.copy()
     unlabeled_df["kmeans_cluster"] = cluster_labels.astype(int)
     cluster_summary = summarize_clusters(unlabeled_df, cluster_column="kmeans_cluster", feature_columns=selected_columns)
     labeled_df = attach_cluster_labels(aligned_df, cluster_labels, cluster_summary)
     metrics = compute_metrics(feature_matrix, cluster_labels, labeled_df=labeled_df)
-    saved_model_path = save_model(model, model_path=model_path) if save_trained_model else None
+    saved_model_path = save_model(model, model_path=model_path) if save_trained_model and fitted_model is None else None
+
     return {
         "labeled_df": labeled_df,
         "metrics": metrics,

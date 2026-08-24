@@ -1,0 +1,29 @@
+================================================================================
+  ANTIGRAVITY PROMPT FOR TEAMMATE / FRIEND TO PASTE IN THEIR AI ASSISTANT
+================================================================================
+
+Hi Antigravity! My teammate updated our `wearable-health-ai` repository with major backend, machine learning, testing, and UI improvements.
+
+Here is a summary of what changed:
+1. Removed mock environmental weather dependencies (`src/environment.py` deleted; `city` parameters removed). All risk scoring and recommendations are now 100% physiologically grounded on wearable biometrics (HRV, Resting HR, SpO2, Sleep, Steps).
+2. Fixed data leakage by introducing strict 70/15/15 chronological user data splits and a 7-day warmup period for personalized baseline z-scores.
+3. Added persistence for ML models (`gmm.pkl`, `hmm.pkl`, `kmeans.pkl`, `scaler.pkl`).
+4. Created a complete Unit Test suite under `tests/` (`test_preprocessing.py`, `test_models.py`, `test_risk_scoring.py`, `test_pipeline.py`).
+5. Built an Experimental Evaluation framework under `experiments/` to generate all IEEE research paper tables and figures.
+6. Updated the Streamlit app (`app/main.py`, `app/pages/*`, `app/dashboard_utils.py`) with surrogate SHAP feature explainability and smooth page navigation.
+
+Please help me do the following tasks step-by-step:
+1. Inspect the workspace file structure and review `DETAILED_CHANGES.md`.
+2. Run all unit tests to verify system health:
+   `py -m pytest tests/`
+3. Train and serialize the ML models and standard scaler:
+   `py train_and_save_models.py`
+4. Test longitudinal inference execution on sample user data:
+   `py run_inference.py --csv data/sample_user.csv`
+5. Run all paper evaluation scripts and generate publication tables/figures:
+   `py experiments/run_all.py`
+6. Launch the Streamlit dashboard and confirm everything runs smoothly:
+   `streamlit run app/main.py`
+
+Please guide me through any step or error if encountered!
+================================================================================
