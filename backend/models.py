@@ -10,15 +10,19 @@ class HealthLog(Base):
     device_user_id = Column(String(100), index=True, nullable=False)
     record_date = Column(String(10), index=True, nullable=False)
 
-    # Health Connect Raw Metrics
+    # Health Connect Raw Metrics (Matching IEEE Paper Section III)
     steps = Column(BigInteger, default=0)
-    heart_rate = Column(Float, nullable=True)
-    oxygen_saturation = Column(Float, nullable=True)
+    calories = Column(Float, nullable=True)                      # Calories Burned (kcal)
+    heart_rate = Column(Float, nullable=True)                  # Mean 24h HR
+    heart_rate_resting = Column(Float, nullable=True)          # Resting HR
+    hrv_rmssd_avg = Column(Float, nullable=True)               # Nocturnal HRV RMSSD (ms)
+    oxygen_saturation = Column(Float, nullable=True)           # Mean SpO2 (%)
+    oxygen_saturation_nadir = Column(Float, nullable=True)     # Minimum SpO2 (%)
     sleep_minutes = Column(BigInteger, default=0)
 
     record_start_time = Column(String(50), nullable=True)
     record_end_time = Column(String(50), nullable=True)
-    collected_at = Column(String(50), nullable=True)
+    collectedAt = Column(String(50), nullable=True)
 
     # ML Prediction Outputs
     predicted_state = Column(String(50), nullable=True)  # Recovery, Baseline, Strain

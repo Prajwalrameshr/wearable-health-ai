@@ -15,7 +15,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="Wearable Health AI Backend",
     description="FastAPI Backend orchestrating Android Health Connect, PostgreSQL Database, and GMM/HMM ML Models.",
-    version="2.0.0",
+    version="2.2.0",
 )
 
 # Enable CORS for cross-origin / mobile app access
@@ -28,12 +28,16 @@ app.add_middleware(
 )
 
 
-# Pydantic Schemas
+# Pydantic Schemas (Matching IEEE Paper Metrics)
 class HealthPayload(BaseModel):
     deviceUserId: str = Field(..., example="android_device_9a8b7c")
     steps: int = Field(0, example=4714)
-    heartRate: Optional[float] = Field(None, example=69.8)
-    oxygenSaturation: Optional[float] = Field(None, example=96.7)
+    calories: Optional[float] = Field(None, example=2150.0)             # Calories burned (kcal)
+    heartRate: Optional[float] = Field(None, example=69.8)               # All-day mean HR
+    heartRateResting: Optional[float] = Field(None, example=61.2)        # Resting HR
+    hrvRmssdAvg: Optional[float] = Field(None, example=42.7)             # Nocturnal HRV RMSSD (ms)
+    oxygenSaturation: Optional[float] = Field(None, example=96.7)        # Mean SpO2 (%)
+    oxygenSaturationNadir: Optional[float] = Field(None, example=94.1)  # Minimum SpO2 (%)
     sleepMinutes: int = Field(0, example=375)
     recordStartTime: Optional[str] = Field(None, example="2025-11-10T00:00:00Z")
     recordEndTime: Optional[str] = Field(None, example="2025-11-10T23:59:59Z")
@@ -70,7 +74,7 @@ class HealthResponse(BaseModel):
 def index():
     return {
         "service": "Wearable Health AI FastAPI Backend",
-        "version": "2.0.0",
+        "version": "2.2.0",
         "status": "running",
         "docs_url": "/docs",
         "endpoints": {
@@ -115,6 +119,7 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
             .first()
         )
 
+        # Field-Aware Upsert
         if existing_log:
             existing_log.steps = payload.steps
             existing_log.heart_rate = payload.heartRate
@@ -122,19 +127,33 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
             existing_log.sleep_minutes = payload.sleepMinutes
             existing_log.record_start_time = payload.recordStartTime
             existing_log.record_end_time = payload.recordEndTime
-            existing_log.collected_at = payload.collectedAt
+            existing_log.collectedAt = payload.collectedAt
+
+            if payload.calories is not None:
+                existing_log.calories = payload.calories
+            if payload.heartRateResting is not None:
+                existing_log.heart_rate_resting = payload.heartRateResting
+            if payload.hrvRmssdAvg is not None:
+                existing_log.hrv_rmssd_avg = payload.hrvRmssdAvg
+            if payload.oxygenSaturationNadir is not None:
+                existing_log.oxygen_saturation_nadir = payload.oxygenSaturationNadir
+
             log_entry = existing_log
         else:
             log_entry = HealthLog(
                 device_user_id=payload.deviceUserId,
                 record_date=record_date,
                 steps=payload.steps,
+                calories=payload.calories,
                 heart_rate=payload.heartRate,
+                heart_rate_resting=payload.heartRateResting,
+                hrv_rmssd_avg=payload.hrvRmssdAvg,
                 oxygen_saturation=payload.oxygenSaturation,
+                oxygen_saturation_nadir=payload.oxygenSaturationNadir,
                 sleep_minutes=payload.sleepMinutes,
                 record_start_time=payload.recordStartTime,
                 record_end_time=payload.recordEndTime,
-                collected_at=payload.collectedAt,
+                collectedAt=payload.collectedAt,
             )
             db.add(log_entry)
 
