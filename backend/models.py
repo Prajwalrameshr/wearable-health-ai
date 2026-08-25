@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 from sqlalchemy import BigInteger, Column, DateTime, Float, Integer, String, Text, UniqueConstraint
 from database import Base
 
@@ -12,6 +12,7 @@ class HealthLog(Base):
 
     # Health Connect Raw Metrics (Matching IEEE Paper Section III)
     steps = Column(BigInteger, default=0)
+    distance_km = Column(Float, nullable=True)                  # Distance (km)
     calories = Column(Float, nullable=True)                      # Calories Burned (kcal)
     heart_rate = Column(Float, nullable=True)                  # Mean 24h HR
     heart_rate_resting = Column(Float, nullable=True)          # Resting HR

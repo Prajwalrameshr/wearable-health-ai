@@ -60,13 +60,18 @@ def predict_health_risk(device_user_id: str, db: Session, city: str = "Bangalore
     for log in target_logs:
         sleep_hrs = (log.sleep_minutes / 60.0) if (log.sleep_minutes and log.sleep_minutes > 24) else (log.sleep_minutes or 7.0)
         cal_val = float(getattr(log, "calories", None) or (1800.0 + float(log.steps or 5000) * 0.04))
+        dist_val = float(getattr(log, "distance_km", None) or (float(log.steps or 5000) * 0.00075))
+        hr_resting = float(getattr(log, "heart_rate_resting", None) or (log.heart_rate or 65.0))
+        hr_day = float(log.heart_rate or (hr_resting + 15.0))
         rows.append({
             "user_id": log.device_user_id,
             "date": log.record_date,
-            "resting_hr_bpm": float(log.heart_rate or 65.0),
-            "hrv_rmssd_ms": 45.0,  # Default fallback if HRV sensor unavailable
+            "resting_hr_bpm": hr_resting,
+            "avg_hr_day_bpm": hr_day,
+            "hrv_rmssd_ms": float(getattr(log, "hrv_rmssd_avg", None) or 45.0),
             "sleep_duration_hours": float(sleep_hrs),
             "steps": float(log.steps or 5000),
+            "distance_km": dist_val,
             "calories_kcal": cal_val,
             "spo2_avg_pct": float(log.oxygen_saturation or 98.0),
             "caffeine_mg": 150.0,

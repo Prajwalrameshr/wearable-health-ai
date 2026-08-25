@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +32,7 @@ app.add_middleware(
 class HealthPayload(BaseModel):
     deviceUserId: str = Field(..., example="android_device_9a8b7c")
     steps: int = Field(0, example=4714)
+    distanceKm: Optional[float] = Field(None, example=3.5)              # Distance (km)
     calories: Optional[float] = Field(None, example=2150.0)             # Calories burned (kcal)
     heartRate: Optional[float] = Field(None, example=69.8)               # All-day mean HR
     heartRateResting: Optional[float] = Field(None, example=61.2)        # Resting HR
@@ -131,6 +132,8 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
 
             if payload.calories is not None:
                 existing_log.calories = payload.calories
+            if payload.distanceKm is not None:
+                existing_log.distance_km = payload.distanceKm
             if payload.heartRateResting is not None:
                 existing_log.heart_rate_resting = payload.heartRateResting
             if payload.hrvRmssdAvg is not None:
@@ -144,6 +147,7 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
                 device_user_id=payload.deviceUserId,
                 record_date=record_date,
                 steps=payload.steps,
+                distance_km=payload.distanceKm,
                 calories=payload.calories,
                 heart_rate=payload.heartRate,
                 heart_rate_resting=payload.heartRateResting,
