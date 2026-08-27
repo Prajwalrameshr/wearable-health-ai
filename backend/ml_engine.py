@@ -93,7 +93,7 @@ def predict_health_risk(device_user_id: str, db: Session, city: str = "Bangalore
     feature_df = outputs["feature_df"].copy()
     feature_df, cluster_out, hmm_bundle = load_model_outputs(feature_df, model_type=model_type)
 
-    final_results_df, analysis = compute_state(model_type, hmm_bundle["labeled_df"], hmm_bundle, {}, cluster_out)
+    final_results_df, analysis = compute_state(model_type, hmm_bundle["labeled_df"], hmm_bundle, cluster_out)
 
     recommendations = generate_recommendations(analysis)
     clinical = analysis.get("clinical_escalation", {})
