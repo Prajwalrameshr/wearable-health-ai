@@ -72,7 +72,7 @@ def _process_android_payload(payload: dict[str, Any]) -> dict[str, Any]:
     feature_df, cluster_out, hmm_bundle = load_model_outputs(feature_df, model_type=model_type)
 
     env_context = get_environment(city)
-    final_results_df, analysis = compute_state(model_type, hmm_bundle["labeled_df"], hmm_bundle, env_context, cluster_out)
+    final_results_df, analysis = compute_state(model_type, hmm_bundle["labeled_df"], hmm_bundle, cluster_out)
 
     # Add recommendations
     recommendations = generate_recommendations(analysis)
