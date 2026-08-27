@@ -103,65 +103,9 @@ def health_check(db: Session = Depends(get_db)):
         )
 
 
-def auto_backfill_missing_days(device_user_id: str, db: Session):
-    try:
-        from datetime import date, timedelta
-        latest = (
-            db.query(HealthLog)
-            .filter(HealthLog.device_user_id == device_user_id)
-            .order_by(HealthLog.record_date.desc())
-            .first()
-        )
-        if not latest:
-            return
-        
-        last_dt = datetime.strptime(latest.record_date, "%Y-%m-%d").date()
-        today_dt = date.today()
-        
-        if last_dt < today_dt:
-            curr_dt = last_dt + timedelta(days=1)
-            import random
-            while curr_dt <= today_dt:
-                d_str = curr_dt.strftime("%Y-%m-%d")
-                chk = db.query(HealthLog).filter(HealthLog.device_user_id == device_user_id, HealthLog.record_date == d_str).first()
-                if not chk:
-                    st = random.randint(7500, 10500)
-                    dist = round(st * 0.00075, 2)
-                    cal = round(1800.0 + st * 0.04, 1)
-                    hr = round(random.uniform(65.0, 72.0), 1)
-                    spo2 = round(random.uniform(97.0, 99.0), 1)
-                    slp = random.randint(420, 500)
-                    
-                    db.add(HealthLog(
-                        device_user_id=device_user_id,
-                        record_date=d_str,
-                        steps=st,
-                        distance_km=dist,
-                        calories=cal,
-                        heart_rate=hr,
-                        heart_rate_resting=hr - 7.0,
-                        hrv_rmssd_avg=45.0,
-                        oxygen_saturation=spo2,
-                        oxygen_saturation_nadir=spo2 - 2.5,
-                        sleep_minutes=slp,
-                        predicted_state="Baseline",
-                        risk_score=12.5,
-                        risk_level="Low",
-                        clinical_advisory_level="Normal",
-                        clinical_summary_message="Physiological state stable and within baseline.",
-                        window_used="30_days"
-                    ))
-                curr_dt += timedelta(days=1)
-            db.commit()
-    except Exception as exc:
-        db.rollback()
-
-
 @app.post("/api/health/records", response_model=HealthResponse)
 def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)):
     try:
-        auto_backfill_missing_days(payload.deviceUserId, db)
-
         if payload.recordStartTime and "T" in payload.recordStartTime:
             record_date = payload.recordStartTime.split("T")[0]
         else:
