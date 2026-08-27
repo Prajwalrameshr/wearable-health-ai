@@ -128,7 +128,7 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
             existing_log.sleep_minutes = payload.sleepMinutes
             existing_log.record_start_time = payload.recordStartTime
             existing_log.record_end_time = payload.recordEndTime
-            existing_log.collectedAt = payload.collectedAt
+            existing_log.collected_at = payload.collectedAt
 
             if payload.calories is not None:
                 existing_log.calories = payload.calories
@@ -157,7 +157,7 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
                 sleep_minutes=payload.sleepMinutes,
                 record_start_time=payload.recordStartTime,
                 record_end_time=payload.recordEndTime,
-                collectedAt=payload.collectedAt,
+                collected_at=payload.collectedAt,
             )
             db.add(log_entry)
 

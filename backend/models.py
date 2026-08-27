@@ -25,7 +25,7 @@ class HealthLog(Base):
 
     record_start_time = Column(String(50), nullable=True)
     record_end_time = Column(String(50), nullable=True)
-    collectedAt = Column(String(50), nullable=True)
+    collected_at = Column("collected_at", String(50), nullable=True)
 
     # ML Prediction Outputs
     predicted_state = Column(String(50), nullable=True)  # Recovery, Baseline, Strain
