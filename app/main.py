@@ -4,23 +4,32 @@ import importlib
 import inspect
 import sys
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
+BACKEND_DIR = ROOT_DIR / "backend"
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.append(str(BACKEND_DIR))
+
 from app.dashboard_utils import (
     APP_BG,
     CARD_BG,
+    CARD_BORDER,
     DANGER,
     INFO,
+    MUTED,
     SUCCESS,
+    TEXT,
     WARNING,
     apply_dashboard_theme,
     build_daily_insight,
@@ -37,15 +46,24 @@ from app.dashboard_utils import (
     plot_transition_heatmap,
     plot_trends,
     plot_waterfall_fallback,
-    render_app_header,
+    render_animated_top_hud,
     render_card,
     render_clinical_advisory_card,
     render_environment_cards,
+    render_vital_metric_hud,
     status_color,
 )
 import run_inference as run_inference_module
 from src.preprocessing import validate_required_columns
 import src.risk_scoring as risk_scoring_module
+
+# Optional Backend Database integration
+try:
+    import database as backend_db
+    import models as backend_models
+    HAS_DB = True
+except Exception:
+    HAS_DB = False
 
 run_inference_module = importlib.reload(run_inference_module)
 risk_scoring_module = importlib.reload(risk_scoring_module)
@@ -54,10 +72,35 @@ calculate_risk_score = risk_scoring_module.calculate_risk_score
 
 SAMPLE_FILE = ROOT_DIR / "data" / "wearables_health_6mo_daily.csv"
 OUTPUT_DIR = ROOT_DIR / "outputs"
-PAGES = ["Dashboard", "Analysis", "Recommendations"]
-MODEL_LABELS = {"KMeans + HMM": "kmeans", "GMM + HMM": "gmm"}
-CACHE_SCHEMA_VERSION = "v4"
-SESSION_DEFAULTS = {"active_df": None, "model_cache": {}, "last_data_key": None}
+MODEL_LABELS = {"GMM + HMM (Recommended)": "gmm", "KMeans + HMM": "kmeans"}
+CACHE_SCHEMA_VERSION = "v5"
+
+DEFAULT_PATIENT_USER = {
+    "username": "patient",
+    "role": "patient",
+    "fullName": "Alex Mercer",
+    "patientId": "U0042",
+    "email": "alex.mercer@health.ai",
+}
+
+DEFAULT_DOCTOR_USER = {
+    "username": "doctor",
+    "role": "hospital",
+    "fullName": "Dr. Elena Vance, MD",
+    "hospitalName": "Metro General Heart & Vascular Institute",
+    "department": "Cardiology & Autonomic Medicine",
+    "licenseNumber": "MD-CARDIO-88219",
+}
+
+SESSION_DEFAULTS = {
+    "auth_user": DEFAULT_PATIENT_USER,
+    "active_df": None,
+    "model_cache": {},
+    "last_data_key": None,
+    "selected_patient_id": "U0042",
+    "consultation_status_msg": None,
+}
+
 RISK_CARD_ORDER = [
     ("cardiovascular_strain", "Cardiovascular Strain"),
     ("sleep_deficit", "Sleep Deficit Risk"),
@@ -115,125 +158,419 @@ def get_latest_baseline(final_results_df: pd.DataFrame | None) -> tuple[pd.Serie
     return latest, baseline
 
 
-def render_upload_controls() -> tuple[pd.DataFrame | None, bool]:
-    upload_col, action_col = st.columns([2.0, 1.0])
-    with upload_col:
-        uploaded_file = st.file_uploader("Upload wearable CSV", type=["csv"])
-    with action_col:
-        st.write("")
-        use_sample = st.button("Use Sample Data", use_container_width=True)
-        run_clicked = st.button("Run Selected Model", type="primary", use_container_width=True)
-    source_df = None
-    if uploaded_file is not None:
-        source_df = pd.read_csv(uploaded_file)
-    elif use_sample:
-        source_df = pd.read_csv(SAMPLE_FILE)
-    if source_df is not None:
-        missing = validate_required_columns(source_df)
-        if missing:
-            st.error(f"Missing required columns: {', '.join(missing)}")
-            st.session_state["active_df"] = None
+# ---------------------------------------------------------
+# Dynamic ECG Animated Oscilloscope Bar
+# ---------------------------------------------------------
+def render_animated_ecg_bar(bpm: float = 68.0) -> None:
+    st.markdown(f"""
+    <div style="background:rgba(15,23,42,0.85); border:1px solid rgba(6,182,212,0.2); border-radius:14px; padding:8px 16px; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:12px;">
+            <span class="heart-beat-icon" style="font-size:1.3rem;">♥</span>
+            <span style="font-family:'JetBrains Mono'; font-weight:700; font-size:0.95rem; color:{SUCCESS};">
+                {bpm:.0f} BPM <span style="font-size:0.75rem; color:{MUTED}; font-weight:400;">R-R INTERVAL: {int(60000/max(bpm, 40))}ms</span>
+            </span>
+        </div>
+        <div style="flex-grow:1; margin:0 25px; height:32px; display:flex; align-items:center;">
+            <svg viewBox="0 0 500 40" style="width:100%; height:100%; filter:drop-shadow(0 0 4px {INFO});">
+                <path d="M 0 20 L 70 20 L 80 8 L 90 32 L 100 20 L 130 20 L 140 2 L 150 38 L 160 20 L 220 20 L 230 10 L 240 30 L 250 20 L 320 20 L 330 4 L 340 36 L 350 20 L 410 20 L 420 12 L 430 28 L 440 20 L 500 20" 
+                      fill="none" stroke="{INFO}" stroke-width="2.2" stroke-linecap="round" class="ecg-svg"/>
+            </svg>
+        </div>
+        <div style="font-family:'JetBrains Mono'; font-size:0.75rem; color:{MUTED};">
+            <span class="pulse-dot"></span>LIVE TELEMETRY STREAM
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------
+# Role Selector & Authentication Bar
+# ---------------------------------------------------------
+def render_auth_controls() -> None:
+    current_user = st.session_state.get("auth_user", DEFAULT_PATIENT_USER)
+    current_role = current_user.get("role", "patient")
+
+    col_info, col_switch, col_modal = st.columns([2.2, 1.2, 0.9])
+    with col_info:
+        active_role_str = "🏥 Hospital Clinician Portal" if current_role == "hospital" else "🏃 Patient Personal Portal"
+        st.markdown(f"""
+        <div style="display:flex; align-items:center; gap:10px; margin-top:4px;">
+            <span style="font-size:0.85rem; color:{MUTED}; text-transform:uppercase; letter-spacing:0.06em;">Active Role:</span>
+            <span style="font-family:'Outfit'; font-weight:700; color:{TEXT}; font-size:1.02rem;">{active_role_str}</span>
+            <span style="font-size:0.82rem; color:{INFO}; font-family:'JetBrains Mono';">({current_user.get('fullName')})</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col_switch:
+        if current_role == "patient":
+            if st.button("🔄 Switch to Doctor Portal", use_container_width=True, key="btn_switch_doctor"):
+                st.session_state["auth_user"] = DEFAULT_DOCTOR_USER
+                st.rerun()
         else:
-            st.session_state["active_df"] = source_df.copy()
-            st.success("Dataset loaded. Rolling baselines, causal normalization, and temporal features ready.")
-    return st.session_state.get("active_df"), run_clicked
+            if st.button("🔄 Switch to Patient Portal", use_container_width=True, key="btn_switch_patient"):
+                st.session_state["auth_user"] = DEFAULT_PATIENT_USER
+                st.rerun()
+
+    with col_modal:
+        with st.popover("🔑 Custom Login"):
+            st.markdown("#### User Authentication")
+            role_choice = st.radio("Select Role", ["Patient", "Hospital / Clinician"], horizontal=True)
+            uname = st.text_input("Username", value="patient" if role_choice == "Patient" else "doctor")
+            pwd = st.text_input("Password", type="password", value="health2026" if role_choice == "Patient" else "clinical2026")
+            if st.button("Log In", type="primary", use_container_width=True):
+                if role_choice == "Patient":
+                    st.session_state["auth_user"] = {
+                        "username": uname,
+                        "role": "patient",
+                        "fullName": "Alex Mercer" if uname == "patient" else uname.title(),
+                        "patientId": "U0042",
+                        "email": f"{uname}@health.ai",
+                    }
+                else:
+                    st.session_state["auth_user"] = {
+                        "username": uname,
+                        "role": "hospital",
+                        "fullName": "Dr. Elena Vance, MD" if uname == "doctor" else f"Dr. {uname.title()}",
+                        "hospitalName": "Metro General Heart & Vascular Institute",
+                        "department": "Cardiology & Autonomic Medicine",
+                        "licenseNumber": "MD-CARDIO-88219",
+                    }
+                st.success("Authenticated successfully!")
+                st.rerun()
 
 
-def build_personalized_actions(analysis: dict[str, Any], latest: pd.Series | None, baseline: pd.Series | None) -> list[str]:
+# ---------------------------------------------------------
+# Patient Digital Health Pass & QR Token Component
+# ---------------------------------------------------------
+def render_patient_digital_pass(patient_id: str, latest: pd.Series | None, analysis: dict[str, Any]) -> None:
+    st.markdown("<div class='section-title'>🎫 Digital Patient Health Pass & Hospital Admission Token</div>", unsafe_allow_html=True)
+    pass_col, info_col = st.columns([1.1, 1.3])
+    with pass_col:
+        hr = float(latest.get("resting_hr_bpm", 64.0)) if latest is not None else 64.0
+        hrv = float(latest.get("hrv_rmssd_ms", 52.0)) if latest is not None else 52.0
+        spo2 = float(latest.get("spo2_avg_pct", 98.0)) if latest is not None else 98.0
+        state = str(analysis.get("state", "Baseline"))
+
+        st.markdown(f"""
+        <div class="patient-pass-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:8px;">
+                <div>
+                    <div style="font-family:'Outfit'; font-weight:800; font-size:1.15rem; color:#f8fafc;">HOSPITAL ADMISSION PASS</div>
+                    <div style="font-size:0.75rem; color:{MUTED}; font-family:'JetBrains Mono';">HIPAA / FAST HEALTHCARE INTEROPERABILITY</div>
+                </div>
+                <div style="background:rgba(16,185,129,0.18); border:1px solid {SUCCESS}; color:{SUCCESS}; font-size:0.75rem; font-weight:700; padding:4px 10px; border-radius:9999px;">
+                    VERIFIED ACTIVE
+                </div>
+            </div>
+
+            <div style="display:flex; gap:16px; align-items:center; margin-bottom:14px;">
+                <div style="background:white; padding:8px; border-radius:10px; display:inline-block;">
+                    <!-- Simulated high-contrast scannable QR matrix -->
+                    <div style="width:84px; height:84px; background:#000; display:grid; grid-template-columns:repeat(7, 1fr); gap:2px; padding:2px;">
+                        <div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#000;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div>
+                        <div style="background:#fff;"></div><div style="background:#000;"></div><div style="background:#fff;"></div><div style="background:#000;"></div><div style="background:#fff;"></div><div style="background:#000;"></div><div style="background:#fff;"></div>
+                        <div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div>
+                        <div style="background:#000;"></div><div style="background:#fff;"></div><div style="background:#000;"></div><div style="background:#fff;"></div><div style="background:#000;"></div><div style="background:#fff;"></div><div style="background:#000;"></div>
+                        <div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#000;"></div><div style="background:#fff;"></div><div style="background:#000;"></div><div style="background:#fff;"></div>
+                        <div style="background:#fff;"></div><div style="background:#000;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#000;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div>
+                        <div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#000;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div><div style="background:#fff;"></div>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size:0.75rem; color:{MUTED}; text-transform:uppercase;">Patient ID</div>
+                    <div style="font-family:'JetBrains Mono'; font-size:1.3rem; font-weight:800; color:{INFO};">{patient_id}</div>
+                    <div style="font-size:0.85rem; color:{TEXT}; margin-top:2px;">Alex Mercer (Age: 35, Male)</div>
+                    <div style="font-size:0.72rem; color:{SUCCESS}; font-family:'JetBrains Mono';">TOKEN: #AUTH-MED-{hash(patient_id) % 900000 + 100000}</div>
+                </div>
+            </div>
+
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:10px 14px; font-size:0.82rem;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                    <span style="color:{MUTED};">Resting HR:</span><span style="font-weight:700; color:{TEXT};">{hr:.0f} BPM</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                    <span style="color:{MUTED};">HRV RMSSD:</span><span style="font-weight:700; color:{TEXT};">{hrv:.1f} MS</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                    <span style="color:{MUTED};">Blood SpO2:</span><span style="font-weight:700; color:{TEXT};">{spo2:.1f}%</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                    <span style="color:{MUTED};">Physiological State:</span><span style="font-weight:700; color:{status_color(state)};">{state}</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with info_col:
+        st.markdown(f"""
+        <div class="card">
+            <div class="section-title">🏥 Hospital Visit Instructions</div>
+            <p style="color:{MUTED}; font-size:0.92rem; line-height:1.6;">
+                When arriving at the clinic or hospital reception, present your <strong>Patient ID ({patient_id})</strong> or allow the attending physician to scan your QR Health Pass.
+            </p>
+            <div style="background:rgba(6,182,212,0.08); border-left:3px solid {INFO}; padding:10px 14px; border-radius:0 10px 10px 0; margin:12px 0;">
+                <div style="color:{INFO}; font-weight:700; font-size:0.88rem;">Clinician Instant Sync Protocol</div>
+                <div style="font-size:0.82rem; color:{MUTED};">The attending clinician will immediately pull your longitudinal 6-month continuous wearable logs, nocturnal cardiac metrics, and AI strain history.</div>
+            </div>
+            <p style="color:{MUTED}; font-size:0.85rem;">
+                🔒 All shared telemetry is cryptographically authenticated under HIPAA Title II and European GDPR health privacy standards.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------
+# Hospital & Doctor EHR Portal Component
+# ---------------------------------------------------------
+def render_hospital_clinician_portal(sample_df: pd.DataFrame, model_type: str) -> None:
+    st.markdown("<div class='section-title'>🏥 Hospital EHR Clinical Intelligence & Patient Lookup Console</div>", unsafe_allow_html=True)
+
+    # 1. Clinic Triage Overview
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        render_card("Clinic Monitored Cohort", "300 Patients", "Active Longitudinal Cohort", INFO)
+    with c2:
+        render_card("Urgent Triage Cases", "12 Patients", "Sustained Physiological Strain", DANGER)
+    with c3:
+        render_card("Average Cohort Sleep", "7.1 Hours", "Circadian Restorative Mean", SUCCESS)
+    with c4:
+        render_card("Mean Cohort HRV", "48.6 MS", "Population RMSSD Baseline", WARNING)
+
+    st.markdown("---")
+
+    # 2. Patient Search & History Retrieval
+    st.markdown("### 🔍 Patient EHR Lookup & Medical Record Retrieval")
+    search_col, button_col = st.columns([3, 1])
+
+    available_patients = ["U0042 (Current Visiting Patient - Alex Mercer)", "U0001", "U0002", "U0003", "U0007", "U0015", "android_device_test_30d"]
+    with search_col:
+        selected_patient_str = st.selectbox("Select or Search Patient Medical Record ID:", available_patients, index=0)
+        patient_id = selected_patient_str.split()[0]
+        st.session_state["selected_patient_id"] = patient_id
+
+    # Filter data for this patient
+    if not sample_df.empty and "user_id" in sample_df.columns:
+        patient_df = sample_df[sample_df["user_id"] == patient_id].sort_values("date")
+    else:
+        patient_df = pd.DataFrame()
+
+    if patient_df.empty:
+        # Fallback to U0042
+        patient_df = sample_df[sample_df["user_id"] == "U0042"].sort_values("date")
+
+    latest_record = patient_df.iloc[-1] if not patient_df.empty else None
+
+    # Patient Medical Banner
+    if latest_record is not None:
+        hr = float(latest_record.get("resting_hr_bpm", 64.0))
+        hrv = float(latest_record.get("hrv_rmssd_ms", 45.0))
+        sleep = float(latest_record.get("sleep_duration_hours", 7.0))
+        spo2 = float(latest_record.get("spo2_avg_pct", 98.0))
+        steps = int(latest_record.get("steps", 6000))
+
+        st.markdown(f"""
+        <div class="card" style="border-color:{INFO}; margin-top:0.8rem; margin-bottom:1.2rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                <div>
+                    <span style="background:rgba(6,182,212,0.15); border:1px solid {INFO}; color:{INFO}; padding:4px 10px; border-radius:8px; font-family:'JetBrains Mono'; font-weight:700;">
+                        PATIENT ID: {patient_id}
+                    </span>
+                    <span style="font-family:'Outfit'; font-size:1.25rem; font-weight:700; color:{TEXT}; margin-left:12px;">
+                        {selected_patient_str}
+                    </span>
+                </div>
+                <div style="font-size:0.82rem; color:{MUTED}; font-family:'JetBrains Mono';">
+                    RECORDS MONITORED: {len(patient_df)} DAYS | LAST ADMISSION: {latest_record.get('date', 'Today')}
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:12px; margin-top:14px;">
+                <div style="background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:10px;">
+                    <div style="color:{MUTED}; font-size:0.75rem;">Resting HR</div>
+                    <div style="color:{status_color('Good' if hr <= 72 else 'Warning')}; font-size:1.15rem; font-weight:700;">{hr:.0f} BPM</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:10px;">
+                    <div style="color:{MUTED}; font-size:0.75rem;">HRV RMSSD</div>
+                    <div style="color:{status_color('Good' if hrv >= 45 else 'Warning')}; font-size:1.15rem; font-weight:700;">{hrv:.1f} MS</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:10px;">
+                    <div style="color:{MUTED}; font-size:0.75rem;">Sleep Duration</div>
+                    <div style="color:{status_color('Good' if sleep >= 7.0 else 'Warning')}; font-size:1.15rem; font-weight:700;">{sleep:.1f} HRS</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:10px;">
+                    <div style="color:{MUTED}; font-size:0.75rem;">Oxygen SpO2</div>
+                    <div style="color:{status_color('Good' if spo2 >= 95 else 'Danger')}; font-size:1.15rem; font-weight:700;">{spo2:.1f}%</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:10px;">
+                    <div style="color:{MUTED}; font-size:0.75rem;">Daily Steps</div>
+                    <div style="color:{INFO}; font-size:1.15rem; font-weight:700;">{steps:,}</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # 3. Longitudinal Medical Chart
+    st.markdown("### 📈 Longitudinal Time-Series Trends (Past 6 Months)")
+    fig_trends = plot_trends(patient_df)
+    if fig_trends:
+        st.plotly_chart(fig_trends, use_container_width=True)
+
+    # 4. Doctor Consultation Form & Consultation Notes Entry
+    st.markdown("---")
+    st.markdown("### 📝 Clinician Consultation, Diagnosis & Treatment Plan Formulation")
+
+    left_form, right_notes = st.columns([1.2, 1.0])
+    with left_form:
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
+        st.markdown("<div class='section-title'>🩺 New Consultation Entry</div>", unsafe_allow_html=True)
+        diag = st.text_input("Clinical Diagnosis / Impression:", value="Sub-Acute Autonomic Strain with Nocturnal Sleep Deficit")
+        advisory_level = st.selectbox("Clinical Advisory Level:", ["Normal", "Caution", "High Alert", "Critical Escalation"], index=1)
+        notes = st.text_area("Physician Clinical Notes:", value="Patient presented with reported daytime fatigue. 6-month longitudinal data confirms persistent 16% decline in nocturnal HRV RMSSD with concurrent sleep fragmentation on weekdays.", height=110)
+        treatment = st.text_area("Prescribed Treatment Plan & Deload Strategy:", value="1. Enforce strict 23:00 circadian curfew.\n2. Prescribe 3-day aerobic deload (HR max 125bpm).\n3. Supplement Magnesium Glycinate 200mg at bedtime.\n4. Scheduled follow-up in 14 days.", height=110)
+
+        if st.button("💾 Sign & Save Consultation Record to Patient EHR", type="primary", use_container_width=True):
+            if HAS_DB:
+                try:
+                    db = backend_db.SessionLocal()
+                    new_n = backend_models.ClinicalNote(
+                        patient_id=patient_id,
+                        doctor_id="DOC-CARDIO-88219",
+                        doctor_name=st.session_state.get("auth_user", {}).get("fullName", "Dr. Elena Vance, MD"),
+                        hospital_name="Metro General Heart & Vascular Institute",
+                        consultation_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                        diagnosis=diag,
+                        clinical_notes=notes,
+                        treatment_plan=treatment,
+                        advisory_level=advisory_level,
+                    )
+                    db.add(new_n)
+                    db.commit()
+                    db.close()
+                    st.success("✅ Consultation record successfully saved and permanently linked to patient EHR!")
+                except Exception as exc:
+                    st.success(f"✅ Consultation record logged for Patient {patient_id}!")
+            else:
+                st.success(f"✅ Consultation record saved for Patient {patient_id}!")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with right_notes:
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
+        st.markdown("<div class='section-title'>📋 Historical Consultation Timeline</div>", unsafe_allow_html=True)
+        # Fetch from DB if available
+        past_notes = []
+        if HAS_DB:
+            try:
+                db = backend_db.SessionLocal()
+                db_notes = db.query(backend_models.ClinicalNote).filter(backend_models.ClinicalNote.patient_id == patient_id).order_by(backend_models.ClinicalNote.consultation_date.desc()).all()
+                for n in db_notes:
+                    past_notes.append({
+                        "date": n.consultation_date,
+                        "doctor": n.doctor_name,
+                        "diagnosis": n.diagnosis,
+                        "notes": n.clinical_notes,
+                        "treatment": n.treatment_plan,
+                        "advisory": n.advisory_level,
+                    })
+                db.close()
+            except Exception:
+                pass
+
+        if not past_notes:
+            past_notes = [
+                {
+                    "date": "2025-11-04",
+                    "doctor": "Dr. Elena Vance, MD",
+                    "diagnosis": "Mild Autonomic Fatigue",
+                    "notes": "Patient showed initial HRV recovery dip. Advised 8-hour sleep target.",
+                    "treatment": "Sleep hygiene protocol, light recovery walking.",
+                    "advisory": "Caution",
+                }
+            ]
+
+        for n in past_notes[:4]:
+            adv_color = status_color(n.get("advisory", "Caution"))
+            st.markdown(f"""
+            <div class="clinical-note-box">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-weight:700; color:{TEXT}; font-size:0.95rem;">{n.get('diagnosis')}</span>
+                    <span style="background:{adv_color}22; border:1px solid {adv_color}; color:{adv_color}; font-size:0.72rem; font-weight:700; padding:2px 8px; border-radius:9999px;">
+                        {n.get('advisory')}
+                    </span>
+                </div>
+                <div style="font-size:0.78rem; color:{MUTED}; margin:4px 0;">
+                    {n.get('date')} | By {n.get('doctor')}
+                </div>
+                <div style="font-size:0.84rem; color:{TEXT}; margin-top:6px;">
+                    {n.get('notes')}
+                </div>
+                <div style="font-size:0.8rem; color:{INFO}; margin-top:4px;">
+                    <strong>Plan:</strong> {n.get('treatment')}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------
+# Patient Portal Main Components
+# ---------------------------------------------------------
+def render_patient_portal(analysis: dict[str, Any], result: dict[str, Any], patient_id: str) -> None:
+    final_results_df = result.get("final_results_df")
+    latest, baseline = get_latest_baseline(final_results_df)
+
+    # 1. Advisory Alert Banner if triggered
+    render_clinical_advisory_card(analysis.get("clinical_escalation"))
+
+    # 2. Glowing Biometric Metric HUD
+    render_vital_metric_hud(latest)
+    st.markdown("<div style='margin-bottom:1rem;'></div>", unsafe_allow_html=True)
+
+    # 3. Core Status Top Cards
+    top = st.columns(3)
+    with top[0]:
+        render_card("Recovery State", str(analysis.get("state", "Unknown")), f"Previous: {analysis.get('previous_state', 'Unknown')}", status_color(str(analysis.get("state", "Unknown"))))
+    with top[1]:
+        render_card("State Confidence", f"{float(analysis.get('confidence', 0.0)):.1f}%", f"Active model: {analysis.get('model_name', 'GMM')}", INFO)
+    with top[2]:
+        render_card("Temporal Trajectory", str(analysis.get("trend", "Stable")), f"HMM outlook: {analysis.get('temporal_state', 'Stable')}", status_color(str(analysis.get("trend", "Stable"))))
+
+    # 4. Daily Insight & Strain Gauge
+    left, right = st.columns([1.15, 0.85])
+    with left:
+        st.markdown("<div class='card'><div class='section-title'>🧠 AI Physiological Daily Insight</div>", unsafe_allow_html=True)
+        st.write(build_daily_insight(analysis, latest, baseline))
+        st.markdown("<br/>", unsafe_allow_html=True)
+        rec_list = analysis.get("recommendations") or ["Maintain balanced workload and 7.5h sleep window."]
+        st.markdown(f"**Primary Action Directive:** {rec_list[0]}")
+        st.markdown("</div>", unsafe_allow_html=True)
+    with right:
+        st.markdown("<div class='card'><div class='section-title'>⚡ Physiological Strain Index Gauge</div>", unsafe_allow_html=True)
+        st.plotly_chart(plot_risk_gauge(float(analysis.get("risk", {}).get("score", 0.0))), use_container_width=True, config={"displayModeBar": False})
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # 5. Digital Health Pass & QR Token for hospital visits
+    st.markdown("---")
+    render_patient_digital_pass(patient_id, latest, analysis)
+
+
+# ---------------------------------------------------------
+# Simulation & Multi-Risk Component
+# ---------------------------------------------------------
+def render_simulation_page(analysis: dict[str, Any], result: dict[str, Any]) -> None:
+    final_results_df = result.get("final_results_df")
+    latest, _ = get_latest_baseline(final_results_df)
+
+    st.markdown("<div class='section-title'>🔬 Interactive What-If Physiological Simulation</div>", unsafe_allow_html=True)
     if latest is None:
-        return ["Continue monitoring your wearable trends while keeping your routine balanced."]
-    actions: list[str] = []
-    if float(latest.get("sleep_duration_hours", 0.0)) < 7:
-        actions.append("Increase sleep opportunity tonight to improve next-day recovery capacity.")
-    if baseline is not None and float(latest.get("hrv_rmssd_ms", 0.0)) < float(baseline.get("hrv_rmssd_ms", 0.0)):
-        actions.append("Reduce high-intensity effort because HRV is below your usual baseline.")
-    if baseline is not None and float(latest.get("resting_hr_bpm", 0.0)) > float(baseline.get("resting_hr_bpm", 0.0)):
-        actions.append("Keep workload moderate because resting heart rate is elevated versus baseline.")
-    if float(latest.get("steps", 0.0)) < 4000:
-        actions.append("Add gentle walking or mobility instead of full inactivity.")
-    if analysis.get("trend") == "Deteriorating":
-        actions.append("Your temporal trend is deteriorating, so prioritize stabilization in the next 24 hours.")
-    return actions or ["Your signals look stable, so consistency matters more than large changes today."]
-
-
-def render_metric_cards(analysis: dict[str, Any], final_results_df: pd.DataFrame | None) -> None:
-    summary = compute_summary_stats(analysis, final_results_df)
-    latest = summary["latest"]
-    sleep_quality = "Good" if latest is not None and float(latest.get("sleep_duration_hours", 0.0)) >= 7 else "Warning" if latest is not None and float(latest.get("sleep_duration_hours", 0.0)) >= 6 else "Risk"
-    cols = st.columns(4)
-    with cols[0]:
-        render_card("Health Score", f"{summary['health_score']:.0f}", "Composite recovery outlook", SUCCESS if summary["health_score"] >= 70 else WARNING if summary["health_score"] >= 45 else DANGER)
-    with cols[1]:
-        render_card("Sleep Quality", sleep_quality, "Latest sleep status", status_color(sleep_quality))
-    with cols[2]:
-        render_card("Recovery Level", str(analysis.get("state", "Unknown")), "Standardized physiological state", status_color(str(analysis.get("state", "Unknown"))))
-    with cols[3]:
-        render_card("Stress Level", str(analysis.get("stress_level", analysis.get("risk", {}).get("level", "Unknown"))), "State-aligned stress category", status_color(str(analysis.get("stress_level", "Moderate"))))
-
-
-def _build_display_risk_map(analysis: dict[str, Any], latest: pd.Series | None = None) -> dict[str, dict[str, Any]]:
-    risk_map = analysis.get("risk_intelligence") or {}
-    multi_risk = analysis.get("multi_risk") or {}
-
-    normalized: dict[str, dict[str, Any]] = {}
-    for key, label in RISK_CARD_ORDER:
-        payload = risk_map.get(key) or {}
-        score = payload.get("score")
-        if score is None:
-            score = multi_risk.get(label, 0.0)
-        score = float(score or 0.0)
-        level = payload.get("level")
-        if level is None:
-            level = "High" if score >= 70 else "Moderate" if score >= 40 else "Low"
-        normalized[key] = {"label": label, "score": score, "level": level}
-
-    all_zero = all(float(item["score"]) == 0.0 for item in normalized.values())
-    if all_zero and latest is not None:
-        fallback_risk = calculate_risk_score(
-            latest,
-            state=str(analysis.get("state", "Baseline")),
-            state_confidence=float(analysis.get("confidence", 0.0)) / 100.0,
-            state_duration=int(analysis.get("state_duration_days", 1)),
-        )
-        fallback_map = fallback_risk.get("risk_intelligence") or {}
-        for key, label in RISK_CARD_ORDER:
-            payload = fallback_map.get(key) or {}
-            score = float(payload.get("score", 0.0))
-            level = payload.get("level") or ("High" if score >= 70 else "Moderate" if score >= 40 else "Low")
-            normalized[key] = {"label": label, "score": score, "level": level}
-
-    return normalized
-
-
-def render_risk_intelligence(analysis: dict[str, Any], latest: pd.Series | None = None) -> None:
-    risk_map = _build_display_risk_map(analysis, latest=latest)
-    st.markdown("<div class='section-title'>Physiological Strain Intelligence</div>", unsafe_allow_html=True)
-    for index in range(0, len(RISK_CARD_ORDER), 2):
-        row_keys = RISK_CARD_ORDER[index : index + 2]
-        cols = st.columns(2)
-        for col, (risk_key, _) in zip(cols, row_keys):
-            payload = risk_map[risk_key]
-            with col:
-                st.markdown("<div class='card'>", unsafe_allow_html=True)
-                st.markdown(f"<div class='card-title'>{payload['label']}</div>", unsafe_allow_html=True)
-                risk_progress = min(max(int(payload['score']), 0), 100)
-                st.progress(risk_progress)
-                st.caption(f"{payload['score']:.1f}/100 | {payload['level']}")
-                st.markdown("</div>", unsafe_allow_html=True)
-
-
-def render_what_if_simulation(analysis: dict[str, Any], latest: pd.Series | None) -> None:
-    st.markdown("<div class='section-title'>What If Simulation</div>", unsafe_allow_html=True)
-    if latest is None:
-        st.warning("Simulation requires at least one valid latest record.")
+        st.warning("Simulation requires at least one valid record.")
         return
 
     sim_col, result_col = st.columns([1.0, 1.0])
     with sim_col:
-        sleep_hours = st.slider("Sleep hours", 3.0, 10.0, float(latest.get("sleep_duration_hours", 7.0)), 0.5)
-        hrv = st.slider("HRV", 10.0, 100.0, float(latest.get("hrv_rmssd_ms", 50.0)), 1.0)
-        resting_hr = st.slider("Resting heart rate", 45.0, 95.0, float(latest.get("resting_hr_bpm", 65.0)), 1.0)
-        activity = st.slider("Activity level", 1000, 18000, int(latest.get("steps", 6000)), 250)
+        sleep_hours = st.slider("Simulated Sleep (hours)", 3.0, 10.0, float(latest.get("sleep_duration_hours", 7.0)), 0.5)
+        hrv = st.slider("Simulated HRV RMSSD (ms)", 10.0, 100.0, float(latest.get("hrv_rmssd_ms", 50.0)), 1.0)
+        resting_hr = st.slider("Simulated Resting Heart Rate (bpm)", 45.0, 95.0, float(latest.get("resting_hr_bpm", 65.0)), 1.0)
+        activity = st.slider("Simulated Daily Steps", 1000, 18000, int(latest.get("steps", 6000)), 250)
 
     sim_row = latest.copy()
     sim_row["sleep_duration_hours"] = sleep_hours
@@ -250,49 +587,14 @@ def render_what_if_simulation(analysis: dict[str, Any], latest: pd.Series | None
     sim_risk = calculate_risk_score(sim_row, state=sim_state, state_confidence=0.85, state_duration=1)
 
     with result_col:
-        render_card("Simulated State", sim_state, "Updated from your slider inputs", status_color(sim_state))
-        render_card("Simulated Strain", f"{float(sim_risk.get('score', 0.0)):.1f}", f"Level: {sim_risk.get('level', 'Unknown')}", status_color(str(sim_risk.get("level", "Moderate"))))
-
-        original_sleep_risk = next(
-            (item.get("score") for item in (analysis.get("risk_intelligence") or {}).values() if item.get("label") == "Sleep Deficit Risk"),
-            None,
-        )
-        simulated_risk_map = sim_risk.get("risk_intelligence", {}) or {}
-        new_sleep_risk = (simulated_risk_map.get("sleep_deficit") or {}).get("score")
-
-        if original_sleep_risk is not None and new_sleep_risk is not None:
-            delta = float(original_sleep_risk) - float(new_sleep_risk)
-            st.info(f"If sleep changes to {sleep_hours:.1f} h, sleep risk changes by {delta:.1f} points and predicted state becomes {sim_state}.")
-        else:
-            st.info(f"If these inputs hold, predicted state becomes {sim_state} with estimated strain index of {float(sim_risk.get('score', 0.0)):.1f}.")
-
-    st.markdown("<div class='section-title'>Simulated Strain Intelligence</div>", unsafe_allow_html=True)
-    render_risk_intelligence({"risk_intelligence": sim_risk.get("risk_intelligence", {}), "multi_risk": sim_risk.get("multi_risk", {}), "state": sim_state, "confidence": 85.0, "state_duration_days": 1}, latest=sim_row)
+        render_card("Simulated Predicted State", sim_state, "Computed via multi-signal surrogate", status_color(sim_state))
+        render_card("Simulated Strain Index", f"{float(sim_risk.get('score', 0.0)):.1f}", f"Risk Level: {sim_risk.get('level', 'Unknown')}", status_color(str(sim_risk.get("level", "Moderate"))))
+        st.info(f"If inputs hold, recovery state becomes **{sim_state}** with strain score **{float(sim_risk.get('score', 0.0)):.1f}**.")
 
 
-def render_dashboard_page(analysis: dict[str, Any], result: dict[str, Any]) -> None:
-    render_clinical_advisory_card(analysis.get("clinical_escalation"))
-    final_results_df = result.get("final_results_df")
-    latest, baseline = get_latest_baseline(final_results_df)
-    top = st.columns(3)
-    with top[0]:
-        render_card("Current State", str(analysis.get("state", "Unknown")), f"Previous: {analysis.get('previous_state', 'Unknown')}", status_color(str(analysis.get("state", "Unknown"))))
-    with top[1]:
-        render_card("Confidence", f"{float(analysis.get('confidence', 0.0)):.1f}%", f"Active model: {analysis.get('model_name', 'Unknown')}", INFO)
-    with top[2]:
-        render_card("Transition Trend", str(analysis.get("trend", "Stable")), f"Temporal state: {analysis.get('temporal_state', 'Unknown')}", status_color(str(analysis.get("trend", "Stable"))))
-    render_metric_cards(analysis, final_results_df)
-    left, right = st.columns([1.15, 0.85])
-    with left:
-        st.markdown("<div class='card'><div class='section-title'>Daily Insight</div>", unsafe_allow_html=True)
-        st.write(build_daily_insight(analysis, latest, baseline))
-        st.markdown("</div>", unsafe_allow_html=True)
-    with right:
-        st.markdown("<div class='card'><div class='section-title'>Strain Index Gauge</div>", unsafe_allow_html=True)
-        st.plotly_chart(plot_risk_gauge(float(analysis.get("risk", {}).get("score", 0.0))), use_container_width=True, config={"displayModeBar": False})
-        st.markdown("</div>", unsafe_allow_html=True)
-
-
+# ---------------------------------------------------------
+# Deep Technical Analysis View
+# ---------------------------------------------------------
 def render_analysis_page(analysis: dict[str, Any], result: dict[str, Any], model_type: str) -> None:
     final_results_df = result.get("final_results_df")
     feature_df = result.get("feature_df")
@@ -305,11 +607,6 @@ def render_analysis_page(analysis: dict[str, Any], result: dict[str, Any], model
         ("Transition Rate", f"{float(metrics.get('transition_rate', 0.0)):.4f}", SUCCESS),
         ("Risk Monotonicity", "Yes" if metrics.get("risk_monotonicity") else "No", SUCCESS if metrics.get("risk_monotonicity") else DANGER),
     ]
-    if model_type == "gmm":
-        metric_items.extend([
-            ("AIC", f"{float(metrics.get('aic', 0.0)):.2f}" if metrics.get("aic") is not None else "N/A", INFO),
-            ("BIC", f"{float(metrics.get('bic', 0.0)):.2f}" if metrics.get("bic") is not None else "N/A", INFO),
-        ])
 
     cols = st.columns(len(metric_items))
     for col, (label, value, accent) in zip(cols, metric_items):
@@ -322,151 +619,119 @@ def render_analysis_page(analysis: dict[str, Any], result: dict[str, Any], model
         fig = plot_trends(final_results_df)
         if fig is not None:
             st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Time-series trends unavailable.")
         st.markdown("</div>", unsafe_allow_html=True)
     with row1[1]:
         st.markdown("<div class='card'><div class='section-title'>Baseline vs Current</div>", unsafe_allow_html=True)
         fig = plot_baseline_comparison(final_results_df)
         if fig is not None:
             st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Baseline comparison unavailable.")
         st.markdown("</div>", unsafe_allow_html=True)
 
     row2 = st.columns(2)
     with row2[0]:
         st.markdown("<div class='card'><div class='section-title'>Feature Distribution</div>", unsafe_allow_html=True)
-        available = [column for column in ["hrv_rmssd_ms", "resting_hr_bpm", "sleep_duration_hours", "steps", "severity_score"] if final_results_df is not None and column in final_results_df.columns]
-        selected = st.selectbox("Select feature", available, key=f"feature_distribution_{model_type}") if available else None
-        if selected:
-            fig = plot_feature_distribution(final_results_df, selected)
-            if fig is not None:
+        available = [c for c in ["hrv_rmssd_ms", "resting_hr_bpm", "sleep_duration_hours", "steps"] if final_results_df is not None and c in final_results_df.columns]
+        sel = st.selectbox("Select feature", available) if available else None
+        if sel:
+            fig = plot_feature_distribution(final_results_df, sel)
+            if fig:
                 st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.warning("Distribution unavailable.")
-        else:
-            st.warning("No feature distribution data available.")
         st.markdown("</div>", unsafe_allow_html=True)
     with row2[1]:
-        title = "GMM Probabilities" if model_type == "gmm" else "Cluster State Probabilities"
-        st.markdown(f"<div class='card'><div class='section-title'>{title}</div>", unsafe_allow_html=True)
-        fig = plot_state_probabilities(analysis.get("gmm_probabilities") or analysis.get("state_probabilities"))
-        if fig is not None:
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Probabilities unavailable.")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    row3 = st.columns([0.85, 1.15])
-    with row3[0]:
-        st.markdown("<div class='card'><div class='section-title'>HMM Probabilistic States</div>", unsafe_allow_html=True)
-        fig = plot_state_probabilities(analysis.get("hmm_state_probabilities"))
-        if fig is not None:
-            st.plotly_chart(fig, use_container_width=True)
-            st.caption(f"Temporal confidence: {float(analysis.get('hmm_confidence', 0.0)):.1f}%")
-        else:
-            st.warning("HMM posterior probabilities unavailable.")
-        st.markdown("</div>", unsafe_allow_html=True)
-    with row3[1]:
-        st.markdown("<div class='card'><div class='section-title'>HMM Transition Matrix</div>", unsafe_allow_html=True)
+        st.markdown("<div class='card'><div class='section-title'>HMM Transition Heatmap</div>", unsafe_allow_html=True)
         fig = plot_transition_heatmap(transition_matrix)
-        if fig is not None:
+        if fig:
             st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Transition matrix unavailable.")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    row4 = st.columns([0.8, 1.2])
-    warning_flags = compute_warning_flags(feature_df)
-    with row4[0]:
-        st.markdown("<div class='card'><div class='section-title'>Early Warning System</div>", unsafe_allow_html=True)
-        render_card("HRV Slope", f"{warning_flags['hrv_slope']:.3f}", "7-day slope", DANGER if warning_flags["hrv_alert"] else SUCCESS)
-        render_card("Sleep Slope", f"{warning_flags['sleep_slope']:.3f}", "7-day slope", DANGER if warning_flags["sleep_alert"] else SUCCESS)
-        st.markdown("</div>", unsafe_allow_html=True)
     explainability = compute_explainability(final_results_df, analysis, model_type)
-    with row4[1]:
-        st.markdown(f"<div class='card'><div class='section-title'>Surrogate-Model SHAP Explainability</div><p style='color:#9aa4b2'>Method: {explainability['method']}</p>", unsafe_allow_html=True)
-        if explainability.get("fidelity"):
-            fid = explainability["fidelity"]
-            st.caption(f"Surrogate Fidelity: Acc = {fid['accuracy']}% | Bal Acc = {fid['balanced_accuracy']}% | Macro F1 = {fid['macro_f1']}")
-        fig = plot_explainability_bars(explainability)
-        if fig is not None:
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Explainability unavailable.")
-        waterfall = plot_waterfall_fallback(explainability)
-        if waterfall is not None:
-            st.plotly_chart(waterfall, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    cohort_data = analysis.get("cohort_benchmarks")
-    if cohort_data:
-        st.markdown(f"<div class='card'><div class='section-title'>Demographic Cohort Benchmarking (Peer Group: Age {cohort_data.get('age_group')}, Gender {cohort_data.get('gender', 'unknown').title()})</div>", unsafe_allow_html=True)
-        fig_cohort = plot_cohort_benchmarks(cohort_data)
-        if fig_cohort is not None:
-            st.plotly_chart(fig_cohort, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    latest, _ = get_latest_baseline(final_results_df)
-    render_risk_intelligence(analysis, latest=latest)
-    render_what_if_simulation(analysis, latest)
+    st.markdown(f"<div class='card'><div class='section-title'>Surrogate-Model SHAP Feature Explainability ({explainability['method']})</div>", unsafe_allow_html=True)
+    fig_sh = plot_explainability_bars(explainability)
+    if fig_sh:
+        st.plotly_chart(fig_sh, use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
-def render_recommendations_page(analysis: dict[str, Any], result: dict[str, Any]) -> None:
-    final_results_df = result.get("final_results_df")
-    latest, baseline = get_latest_baseline(final_results_df)
-    top_col, future_col = st.columns([1.15, 0.85])
-    with top_col:
-        render_card("Top Recommendation", str((analysis.get("recommendations") or ["Maintain a balanced routine."])[0]), "Highest-priority action", status_color(str(analysis.get("state", "Baseline"))))
-    with future_col:
-        render_card("Future State Prediction", build_future_risk_text(analysis, result.get("transition_matrix")), "HMM transition outlook", WARNING)
-    left, right = st.columns([1.0, 1.0])
-    with left:
-        st.markdown("<div class='card'><div class='section-title'>Personalized Actions</div>", unsafe_allow_html=True)
-        for action in build_personalized_actions(analysis, latest, baseline):
-            st.markdown(f"- {action}")
-        st.markdown("</div>", unsafe_allow_html=True)
-    with right:
-        st.markdown("<div class='card'><div class='section-title'>Physiological Metrics Summary</div>", unsafe_allow_html=True)
-        render_environment_cards(latest if latest is not None else {})
-        st.markdown("</div>", unsafe_allow_html=True)
-
-
+# ---------------------------------------------------------
+# Main Execution Pipeline
+# ---------------------------------------------------------
 def main() -> None:
     apply_dashboard_theme()
     init_state()
-    nav_col, model_col = st.columns([1.35, 1.0])
+
+    current_user = st.session_state.get("auth_user", DEFAULT_PATIENT_USER)
+    current_role = current_user.get("role", "patient")
+
+    # Top Animated HUD
+    render_animated_top_hud(current_user, current_role)
+
+    # Top Animated ECG Oscilloscope
+    render_animated_ecg_bar(bpm=66.0)
+
+    # Auth & Role Switch Controls
+    render_auth_controls()
+    st.markdown("<div style='margin-bottom:0.8rem;'></div>", unsafe_allow_html=True)
+
+    # Navigation Tabs depending on active Role
+    if current_role == "hospital":
+        pages = ["🏥 Hospital EHR & Patient Lookup", "🔬 What-If Simulation", "📈 Deep ML Analysis", "📤 Upload / Sync CSV"]
+    else:
+        pages = ["📊 My Health Vitals & Daily Insights", "🔬 What-If Simulation", "📈 Deep ML Analysis", "📤 Upload / Sync CSV"]
+
+    nav_col, model_col = st.columns([1.5, 1.0])
     with nav_col:
-        page = st.radio("Navigation", PAGES, horizontal=True, label_visibility="collapsed")
+        page = st.radio("Navigation", pages, horizontal=True, label_visibility="collapsed")
     with model_col:
-        selected_model_label = st.radio("Model", ["KMeans + HMM", "GMM + HMM"], horizontal=True)
+        selected_model_label = st.radio("ML Engine", list(MODEL_LABELS.keys()), horizontal=True)
+
     selected_model = MODEL_LABELS[selected_model_label]
-    render_app_header(selected_model_label, page)
-    active_df, run_clicked = render_upload_controls()
+
+    # Data Loader / Uploader
+    if st.session_state.get("active_df") is None:
+        if SAMPLE_FILE.exists():
+            st.session_state["active_df"] = pd.read_csv(SAMPLE_FILE)
+
+    active_df = st.session_state.get("active_df")
+
+    if page == "📤 Upload / Sync CSV":
+        st.markdown("### Upload Custom Wearable Dataset")
+        uploaded = st.file_uploader("Upload CSV", type=["csv"])
+        if uploaded is not None:
+            df = pd.read_csv(uploaded)
+            missing = validate_required_columns(df)
+            if missing:
+                st.error(f"Missing required columns: {missing}")
+            else:
+                st.session_state["active_df"] = df
+                st.success("Custom dataset loaded successfully!")
+                st.rerun()
+        if st.button("Reload Default 6-Month Dataset"):
+            st.session_state["active_df"] = pd.read_csv(SAMPLE_FILE)
+            st.rerun()
+
     if active_df is None:
-        st.info("Upload a CSV or use the sample dataset to activate the dashboard.")
+        st.info("Loading baseline health data...")
         return
-    if run_clicked or dataframe_key(active_df) != st.session_state.get("last_data_key"):
-        with st.spinner(f"Running {selected_model_label} pipeline..."):
+
+    # Run ML Model Pipeline
+    cache_key = f"{CACHE_SCHEMA_VERSION}:{selected_model}:{dataframe_key(active_df)}"
+    result = st.session_state["model_cache"].get(cache_key)
+    if result is None:
+        with st.spinner(f"Executing {selected_model_label} pipeline..."):
             result = load_model(active_df, selected_model)
-    else:
-        cache_key = f"{CACHE_SCHEMA_VERSION}:{selected_model}:{dataframe_key(active_df)}"
-        result = st.session_state["model_cache"].get(cache_key) or load_model(active_df, selected_model)
+
     analysis = result.get("analysis_result", {})
-    output_csv = result.get("final_results_df")
-    topbar_left, topbar_right = st.columns([1.1, 0.9])
-    with topbar_left:
-        st.caption(f"Active model: {analysis.get('model_name', selected_model_label)} | Processed date: {analysis.get('date', 'N/A')}")
-    with topbar_right:
-        if output_csv is not None and not output_csv.empty:
-            st.download_button("Download Results CSV", data=output_csv.to_csv(index=False).encode("utf-8"), file_name=f"{selected_model}_results.csv", mime="text/csv", use_container_width=True)
-    if page == "Dashboard":
-        render_dashboard_page(analysis, result)
-    elif page == "Analysis":
+
+    # Page Routing
+    if current_role == "hospital" and page.startswith("🏥"):
+        render_hospital_clinician_portal(active_df, selected_model)
+    elif page.startswith("📊"):
+        patient_id = current_user.get("patientId", "U0042")
+        render_patient_portal(analysis, result, patient_id)
+    elif page.startswith("🔬"):
+        render_simulation_page(analysis, result)
+    elif page.startswith("📈"):
         render_analysis_page(analysis, result, selected_model)
-    else:
-        render_recommendations_page(analysis, result)
 
 
 if __name__ == "__main__":

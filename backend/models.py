@@ -40,3 +40,38 @@ class HealthLog(Base):
     __table_args__ = (
         UniqueConstraint("device_user_id", "record_date", name="uq_user_daily_record"),
     )
+
+
+class User(Base):
+    """User account model supporting Role-Based Access Control (Patient vs Hospital/Doctor)."""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    username = Column(String(100), unique=True, index=True, nullable=False)
+    email = Column(String(150), unique=True, index=True, nullable=True)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(String(30), default="patient", nullable=False)  # 'patient' or 'hospital'
+    full_name = Column(String(150), nullable=True)
+    patient_id = Column(String(100), nullable=True, index=True)  # Links to device_user_id / dataset user
+    hospital_name = Column(String(150), nullable=True)
+    department = Column(String(100), nullable=True)
+    license_number = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ClinicalNote(Base):
+    """Clinical consultation records created when a patient visits the hospital."""
+    __tablename__ = "clinical_notes"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    patient_id = Column(String(100), index=True, nullable=False)
+    doctor_id = Column(String(100), nullable=True)
+    doctor_name = Column(String(150), nullable=True)
+    hospital_name = Column(String(150), nullable=True)
+    consultation_date = Column(String(20), nullable=False)
+    diagnosis = Column(String(255), nullable=True)
+    clinical_notes = Column(Text, nullable=False)
+    treatment_plan = Column(Text, nullable=True)
+    advisory_level = Column(String(50), default="Normal")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
