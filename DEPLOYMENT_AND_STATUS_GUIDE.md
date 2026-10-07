@@ -21,7 +21,19 @@ Welcome to the **Wearable Health AI Enterprise Platform** featuring **Role-Based
   - **Historical Consultation Timeline**: Chronological log of previous doctor visits, diagnosis, and treatment plans.
   - **Hospital Clinic Cohort Triage**: Real-time status breakdown across monitored patients.
 
-### 2. Next-Level UI & Dynamic Animations
+### 2. 📱 Native Android Smart Watch App & Compiled APK
+- **Compiled Ready-to-Install APK**: [`WearableHealthAI.apk`](file:///d:/downloads/wearable-health-ai-20260820T054456Z-1-001/wearable-health-ai/WearableHealthAI.apk) (12.33 MB)
+- **Native Android Source Code**: [`android_app/`](file:///d:/downloads/wearable-health-ai-20260820T054456Z-1-001/wearable-health-ai/android_app) (Kotlin + Jetpack Compose + Android Health Connect + WorkManager + Retrofit)
+- **Watch Sensor Data Ingestion**:
+  - Automatically queries **Android Health Connect** for daily metrics from smartwatches (Samsung Galaxy Watch, Google Pixel Watch, Fitbit, WearOS):
+    - Real-time steps count
+    - Active distance traveled
+    - Active & basal calories burned
+    - 24-hour mean and resting heart rate
+  - Runs in the background via `HealthWorker` and syncs automatically with the FastAPI backend endpoint `POST /api/health/records`.
+- **1-Click Web Download**: The APK can be downloaded directly from the web dashboard header or digital health pass.
+
+### 3. Next-Level UI & Dynamic Animations
 - **Obsidian-Cyan Cyber-Medical Glassmorphism**: High-contrast, clean typography powered by Google Fonts (*Outfit*, *Inter*, and *JetBrains Mono*).
 - **Continuous Oscilloscope ECG Waveform**: Animated real-time electrocardiogram wave traversing the HUD.
 - **Pulsing Cardiac Heartbeat**: Micro-animated beating heart icon with dynamic BPM pulse.

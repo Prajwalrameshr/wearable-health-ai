@@ -77,8 +77,11 @@ class HealthPayload(BaseModel):
     deviceUserId: str = Field(..., example="android_device_9a8b7c")
     steps: int = Field(0, example=4714)
     distanceKm: Optional[float] = Field(None, example=3.5)
+    distanceMeters: Optional[float] = Field(None, example=3500.0)
     calories: Optional[float] = Field(None, example=2150.0)
+    caloriesKcal: Optional[float] = Field(None, example=2150.0)
     heartRate: Optional[float] = Field(None, example=69.8)
+    averageHeartRate: Optional[float] = Field(None, example=69.8)
     heartRateResting: Optional[float] = Field(None, example=61.2)
     hrvRmssdAvg: Optional[float] = Field(None, example=42.7)
     oxygenSaturation: Optional[float] = Field(None, example=96.7)
@@ -592,20 +595,24 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
             .first()
         )
 
+        dist_km = payload.distanceKm if payload.distanceKm is not None else ((payload.distanceMeters / 1000.0) if payload.distanceMeters is not None else None)
+        cals = payload.calories if payload.calories is not None else payload.caloriesKcal
+        hr = payload.heartRate if payload.heartRate is not None else payload.averageHeartRate
+
         # Field-Aware Upsert
         if existing_log:
             existing_log.steps = payload.steps
-            existing_log.heart_rate = payload.heartRate
+            existing_log.heart_rate = hr
             existing_log.oxygen_saturation = payload.oxygenSaturation
             existing_log.sleep_minutes = payload.sleepMinutes
             existing_log.record_start_time = payload.recordStartTime
             existing_log.record_end_time = payload.recordEndTime
             existing_log.collected_at = payload.collectedAt
 
-            if payload.calories is not None:
-                existing_log.calories = payload.calories
-            if payload.distanceKm is not None:
-                existing_log.distance_km = payload.distanceKm
+            if cals is not None:
+                existing_log.calories = cals
+            if dist_km is not None:
+                existing_log.distance_km = dist_km
             if payload.heartRateResting is not None:
                 existing_log.heart_rate_resting = payload.heartRateResting
             if payload.hrvRmssdAvg is not None:
@@ -619,9 +626,9 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
                 device_user_id=payload.deviceUserId,
                 record_date=record_date,
                 steps=payload.steps,
-                distance_km=payload.distanceKm,
-                calories=payload.calories,
-                heart_rate=payload.heartRate,
+                distance_km=dist_km,
+                calories=cals,
+                heart_rate=hr,
                 heart_rate_resting=payload.heartRateResting,
                 hrv_rmssd_avg=payload.hrvRmssdAvg,
                 oxygen_saturation=payload.oxygenSaturation,

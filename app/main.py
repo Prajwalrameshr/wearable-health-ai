@@ -190,7 +190,7 @@ def render_auth_controls() -> None:
     current_user = st.session_state.get("auth_user", DEFAULT_PATIENT_USER)
     current_role = current_user.get("role", "patient")
 
-    col_info, col_switch, col_modal = st.columns([2.2, 1.2, 0.9])
+    col_info, col_apk, col_switch, col_modal = st.columns([1.8, 1.1, 1.1, 0.8])
     with col_info:
         active_role_str = "🏥 Hospital Clinician Portal" if current_role == "hospital" else "🏃 Patient Personal Portal"
         st.markdown(f"""
@@ -200,6 +200,19 @@ def render_auth_controls() -> None:
             <span style="font-size:0.82rem; color:{INFO}; font-family:'JetBrains Mono';">({current_user.get('fullName')})</span>
         </div>
         """, unsafe_allow_html=True)
+
+    with col_apk:
+        apk_file = ROOT_DIR / "WearableHealthAI.apk"
+        if apk_file.exists():
+            with open(apk_file, "rb") as f:
+                st.download_button(
+                    "📱 Download APK",
+                    data=f.read(),
+                    file_name="WearableHealthAI.apk",
+                    mime="application/vnd.android.package-archive",
+                    use_container_width=True,
+                    help="Download the compiled Android Smart Watch Health Connect APK (12.3 MB) directly to your mobile device",
+                )
 
     with col_switch:
         if current_role == "patient":
@@ -212,7 +225,7 @@ def render_auth_controls() -> None:
                 st.rerun()
 
     with col_modal:
-        with st.popover("🔑 Custom Login"):
+        with st.popover("🔑 Login"):
             st.markdown("#### User Authentication")
             role_choice = st.radio("Select Role", ["Patient", "Hospital / Clinician"], horizontal=True)
             uname = st.text_input("Username", value="patient" if role_choice == "Patient" else "doctor")
@@ -317,6 +330,18 @@ def render_patient_digital_pass(patient_id: str, latest: pd.Series | None, analy
             </p>
         </div>
         """, unsafe_allow_html=True)
+        apk_file = ROOT_DIR / "WearableHealthAI.apk"
+        if apk_file.exists():
+            with open(apk_file, "rb") as f:
+                st.download_button(
+                    "📱 Download Smart Watch Sync APK (WearableHealthAI.apk)",
+                    data=f.read(),
+                    file_name="WearableHealthAI.apk",
+                    mime="application/vnd.android.package-archive",
+                    use_container_width=True,
+                    key="btn_download_apk_pass",
+                    help="Install on your Android smartphone to sync heart rate, steps, and sleep from your smartwatch directly to this app"
+                )
 
 
 # ---------------------------------------------------------

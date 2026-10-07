@@ -10,3 +10,9 @@ backend/temp_cache/
 outputs/
 data/kmeans_wearables_data.csv
 scratch/
+.gradle/
+android_app/.gradle/
+android_app/**/build/
+android_app/**/.gradle/
+android_app/local.properties
+android_app/.kotlin/
