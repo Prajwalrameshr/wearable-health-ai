@@ -3,6 +3,7 @@ import hashlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from fastapi import Depends, FastAPI, HTTPException, status, Query
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -673,6 +674,25 @@ def receive_health_records(payload: HealthPayload, db: Session = Depends(get_db)
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to process health payload: {str(exc)}"
         )
+
+
+@app.get("/download/apk", summary="Download compiled Android APK directly to phone")
+@app.get("/apk", summary="Download compiled Android APK directly to phone")
+def download_apk():
+    """Serves the compiled Android WearableHealthAI.apk directly to any device/phone."""
+    possible_paths = [
+        Path(__file__).resolve().parent.parent / "WearableHealthAI.apk",
+        Path("D:/downloads/WearableHealthAI.apk"),
+        Path(__file__).resolve().parent.parent / "android_app/app/build/outputs/apk/debug/app-debug.apk",
+    ]
+    for apk_path in possible_paths:
+        if apk_path.exists():
+            return FileResponse(
+                path=str(apk_path),
+                filename="WearableHealthAI.apk",
+                media_type="application/vnd.android.package-archive"
+            )
+    raise HTTPException(status_code=404, detail="WearableHealthAI.apk not found on server")
 
 
 if __name__ == "__main__":

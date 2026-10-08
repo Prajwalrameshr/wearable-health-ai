@@ -168,11 +168,21 @@ object ApiClient {
         return url
     }
 
-    fun setBaseUrl(context: Context, url: String) {
+    fun setBaseUrl(context: Context, rawUrl: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        var formatted = url.trim()
-        if (!formatted.endsWith("/")) {
-            formatted += "/"
+        var formatted = rawUrl.trim()
+        if (formatted.isNotEmpty()) {
+            if (!formatted.startsWith("http://") && !formatted.startsWith("https://")) {
+                formatted = "http://$formatted"
+            }
+            if (!formatted.substringAfter("://").contains(":")) {
+                formatted = "$formatted:5000"
+            }
+            if (!formatted.endsWith("/")) {
+                formatted += "/"
+            }
+        } else {
+            formatted = DEFAULT_BASE_URL
         }
         prefs.edit().putString(KEY_BASE_URL, formatted).apply()
     }
