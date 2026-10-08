@@ -249,7 +249,7 @@ fun WearableHealthAppScreen(client: HealthConnectClient) {
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Button(
                             onClick = {
                                 ApiClient.setBaseUrl(context, serverUrl)
@@ -259,16 +259,26 @@ fun WearableHealthAppScreen(client: HealthConnectClient) {
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Save URL", fontSize = 12.sp)
+                            Text("Save URL", fontSize = 11.sp)
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                serverUrl = "http://172.16.5.230:5000/"
+                                ApiClient.setBaseUrl(context, serverUrl)
+                                Toast.makeText(context, "Set to 172.16.5.230!", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("My PC IP", fontSize = 11.sp)
                         }
                         OutlinedButton(
                             onClick = {
                                 serverUrl = "http://10.0.2.2:5000/"
                                 ApiClient.setBaseUrl(context, serverUrl)
                             },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(0.9f)
                         ) {
-                            Text("Emulator", fontSize = 12.sp)
+                            Text("Emulator", fontSize = 11.sp)
                         }
                     }
                 }
