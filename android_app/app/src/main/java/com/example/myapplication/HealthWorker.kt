@@ -157,7 +157,7 @@ data class ClinicalNoteResponse(
 object ApiClient {
     private const val PREFS_NAME = "HealthAppPrefs"
     private const val KEY_BASE_URL = "backend_base_url"
-    const val DEFAULT_BASE_URL = "http://172.16.5.230:5000/"
+    const val DEFAULT_BASE_URL = "http://10.206.127.236:5000/"
 
     fun getBaseUrl(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

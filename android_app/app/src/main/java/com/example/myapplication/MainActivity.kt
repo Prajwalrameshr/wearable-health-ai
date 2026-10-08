@@ -263,13 +263,13 @@ fun WearableHealthAppScreen(client: HealthConnectClient) {
                         }
                         OutlinedButton(
                             onClick = {
-                                serverUrl = "http://172.16.5.230:5000/"
+                                serverUrl = "http://10.206.127.236:5000/"
                                 ApiClient.setBaseUrl(context, serverUrl)
-                                Toast.makeText(context, "Set to 172.16.5.230!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Set to 10.206.127.236!", Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("My PC IP", fontSize = 11.sp)
+                            Text("10.206.127.236", fontSize = 10.sp)
                         }
                         OutlinedButton(
                             onClick = {
