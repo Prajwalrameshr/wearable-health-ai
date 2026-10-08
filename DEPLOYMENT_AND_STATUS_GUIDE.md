@@ -1,159 +1,139 @@
-# Wearable Health AI - Enterprise Deployment & Status Guide
+# Wearable Health AI - Enterprise Deployment & Operations Guide
 
-Welcome to the **Wearable Health AI Enterprise Platform** featuring **Role-Based Access Control (RBAC)**, **Doctor Hospital Portal**, **Patient Health Pass with QR**, and **Animated Biometric HUD Telemetry**.
-
----
-
-## 🌟 Key New Features & Architecture
-
-### 1. Dual Role-Based Access Control (RBAC)
-- **🏃 Normal User / Patient Portal (`role: patient`)**:
-  - **Live Biometric Telemetry HUD**: Beating heart rate monitor, nocturnal HRV RMSSD recovery index, restorative sleep hours, and blood oxygen (SpO2).
-  - **Physiological Strain Index Gauge**: 0–100 composite risk scoring with color-coded safety tiers.
-  - **AI Daily Insights & Action Engine**: Proactive recovery recommendations tailored to recent biomarker deviations.
-  - **🎫 Digital Patient Health Pass & Hospital Admission QR**: Allows patients to present a verifiable admission pass and unique medical token (`#AUTH-MED-...`) when visiting any hospital or clinic.
-  - **Interactive What-If Simulator**: Real-time multi-signal physiological stress prediction based on sleep, HRV, and activity adjustments.
-
-- **🏥 Hospital / Clinician Portal (`role: hospital`)**:
-  - **Instant Patient EHR Lookup**: Doctors can search or select any visiting patient (e.g., `U0042`, `U0001`, `android_device_test_30d`, etc.) and retrieve their **complete past medical records (up to 6 months / 180 days)**.
-  - **Longitudinal Medical Trend Analysis**: Multi-chart visualization showing continuous HRV, resting heart rate, sleep duration, and SpO2 nadir.
-  - **🩺 Doctor Consultation & Clinical Notes Formulation**: Attending physicians can input clinical impressions, diagnose autonomic fatigue, prescribe deload protocols or medications, set clinical advisory tiers (Normal, Caution, High Alert, Critical Escalation), and save directly into the patient's electronic medical record.
-  - **Historical Consultation Timeline**: Chronological log of previous doctor visits, diagnosis, and treatment plans.
-  - **Hospital Clinic Cohort Triage**: Real-time status breakdown across monitored patients.
-
-### 2. 📱 Native Android Smart Watch App & Compiled APK
-- **Compiled Ready-to-Install APK**: [`WearableHealthAI.apk`](file:///d:/downloads/wearable-health-ai-20260820T054456Z-1-001/wearable-health-ai/WearableHealthAI.apk) (12.33 MB)
-- **Native Android Source Code**: [`android_app/`](file:///d:/downloads/wearable-health-ai-20260820T054456Z-1-001/wearable-health-ai/android_app) (Kotlin + Jetpack Compose + Android Health Connect + WorkManager + Retrofit)
-- **Watch Sensor Data Ingestion**:
-  - Automatically queries **Android Health Connect** for daily metrics from smartwatches (Samsung Galaxy Watch, Google Pixel Watch, Fitbit, WearOS):
-    - Real-time steps count
-    - Active distance traveled
-    - Active & basal calories burned
-    - 24-hour mean and resting heart rate
-  - Runs in the background via `HealthWorker` and syncs automatically with the FastAPI backend endpoint `POST /api/health/records`.
-- **1-Click Web Download**: The APK can be downloaded directly from the web dashboard header or digital health pass.
-
-### 3. Next-Level UI & Dynamic Animations
-- **Obsidian-Cyan Cyber-Medical Glassmorphism**: High-contrast, clean typography powered by Google Fonts (*Outfit*, *Inter*, and *JetBrains Mono*).
-- **Continuous Oscilloscope ECG Waveform**: Animated real-time electrocardiogram wave traversing the HUD.
-- **Pulsing Cardiac Heartbeat**: Micro-animated beating heart icon with dynamic BPM pulse.
-- **Glowing Holographic Telemetry Cards**: Hover elevation and glowing status accents.
+Welcome to the **Wearable Health AI Platform**. This guide details the complete end-to-end architecture featuring **Native Android Smartwatch App (with built-in Role-Based Access)**, **FastAPI Machine Learning Backend**, and **Production Database Architecture**.
 
 ---
 
-## 🚀 Quick Start & How to Run
+## 🗄️ Database Architecture & Specifications
 
-### 1. Clone & Set Up Environment
-```bash
-# Ensure Python 3.10+ is installed
-pip install -r requirements.txt
+### 1. Default Embedded Database: SQLite
+* **File Location**: `backend/health_database.db`
+* **Driver**: `sqlite+pysqlite` via SQLAlchemy ORM
+* **Features**:
+  * Zero-configuration, local ACID persistence.
+  * Auto-initializes schema on startup (`backend/database.py`).
+  * Seeds sample patient records (`U0042`, `U0001`, `android_device_test_30d`) and pre-populates with realistic historical data and consultation notes.
+
+### 2. Production Scalable Cloud Database: PostgreSQL (Neon.tech / AWS RDS / Supabase)
+* If `DATABASE_URL` is configured in `backend/.env` or system environment, the platform dynamically switches to PostgreSQL without any code changes:
+  ```env
+  DATABASE_URL=postgresql://user:password@ep-example.neon.tech/neondb?sslmode=require
+  ```
+* Supports connection pooling via SQLAlchemy `QueuePool`.
+
+### 3. Database Schema Models ([`backend/models.py`](file:///d:/downloads/wearable-health-ai-20260820T054456Z-1-001/wearable-health-ai/backend/models.py))
+* **`User`**: Role-based authentication (`role`: `patient` or `hospital`), hashed passwords, patient admission tokens (`#AUTH-MED-...`).
+* **`HealthLog`**: 30 to 180-day longitudinal biometric logs containing:
+  - `spo2` (Oxygen Saturation %)
+  - `heart_rate` & `heart_rate_resting` (BPM)
+  - `steps` (Daily pedometer count)
+  - `sleep_hours` (Sleep duration)
+  - `hrv_rmssd` (Autonomic heart rate variability)
+  - `state` (Recovery, Baseline, Strain)
+  - `risk_score` (0–100 Physiological Strain Index)
+* **`ClinicalNote`**: Hospital EHR doctor consultations (`patient_id`, `doctor_name`, `hospital_name`, `diagnosis`, `clinical_notes`, `treatment_plan`, `advisory_level`).
+
+---
+
+## 📱 Native Android App: Built-In Role-Based Access & The 4 Hero Parameters
+
+Everything is implemented directly in the native Android application ([`android_app/`](file:///d:/downloads/wearable-health-ai-20260820T054456Z-1-001/wearable-health-ai/android_app)):
+
+### 🌟 The 4 Main Biometric Parameters (Hero Grid)
+The Android app presents these 4 vital signals prominently in high-contrast cyber-medical telemetry cards:
+1. **🫁 SpO2 (Oxygen Saturation)**: Live pulse oximetry, e.g. `98.4%` (Normal > 95%).
+2. **💓 Heart Beat (BPM)**: Heart rate pulse, resting heart rate, and autonomic HRV (e.g. `72 BPM`, Resting `64 bpm`, HRV `48 ms`).
+3. **🚶 Daily Steps**: Pedometer counter with active distance and burned calories (e.g. `8,420 steps`, `5.8 km`, `435 kcal`).
+4. **🌙 Sleep Duration**: Restorative sleep architecture (e.g. `7h 45m`, `465 min total`).
+
+### 👥 Dual Role Switching Inside the Android App
+Toggle between roles directly at the top of the mobile screen:
+1. **🏃 Normal User / Patient Portal**:
+   - Live Health Connect sensor ingestion from smartwatches (Samsung Galaxy Watch, Pixel Watch, WearOS).
+   - "⚡ Sync Watch to AI Engine" button communicating directly with FastAPI (`POST /api/health/records`).
+   - Live AI Engine HUD: Displays physiological state (`Recovery`, `Baseline`, `Strain`), Strain Index (0–100), and clinical recommendations.
+   - Digital Patient Health Pass & Hospital Admission ID (`#AUTH-MED-42`) to present when visiting a hospital clinic.
+2. **🏥 Hospital / Doctor Portal**:
+   - Clinical EHR station for physicians (e.g., *Dr. Elena Vance, MD*).
+   - Instant Patient EHR Lookup: Enter or select Patient ID (`U0042`, `U0001`, `android_user`) to fetch complete past vitals.
+   - Doctor's Intake Vitals Review: View patient's historical SpO2, Heart Beat, Steps, and Sleep.
+   - Clinical Consultation Entry Form: Formulate clinical diagnosis, doctor notes, treatment plan (Rx), and advisory level.
+   - "💾 Save Consultation to EHR Database": Persists consultation directly into the database.
+   - Historical Consultation Timeline: Review chronological records of past hospital visits.
+
+---
+
+## 🚀 Complete Step-by-Step Execution Guide (A to Z)
+
+### Step 1: Install Dependencies
+Open PowerShell or Terminal in the project root:
+```powershell
 pip install -r backend/requirements.txt
 ```
 
-### 2. Launch FastAPI Enterprise Backend
-```bash
-# Starts the backend on http://127.0.0.1:5000
+### Step 2: Start the FastAPI Backend Server
+Run the FastAPI enterprise backend:
+```powershell
 python backend/main.py
 ```
-*Swagger API Documentation is accessible at: `http://127.0.0.1:5000/docs`*
+* The server starts on `http://0.0.0.0:5000`
+* Interactive API Documentation (Swagger) is available at: `http://127.0.0.1:5000/docs`
+* Live Health check endpoint: `http://127.0.0.1:5000/health`
 
-### 3. Launch Streamlit Interactive UI
-```bash
-# In a new terminal window:
-streamlit run app/main.py
+### Step 3: Install the Android App (APK)
+The pre-compiled Android APK is available in the project and your Downloads folder:
+* **Workspace Location**: [`WearableHealthAI.apk`](file:///d:/downloads/wearable-health-ai-20260820T054456Z-1-001/wearable-health-ai/WearableHealthAI.apk)
+* **Downloads Location**: `D:\downloads\WearableHealthAI.apk`
+
+**To Install via ADB (USB / Emulator):**
+```powershell
+adb install -r WearableHealthAI.apk
 ```
-*Opens automatically in your browser at: `http://localhost:8501`*
+*Or copy `WearableHealthAI.apk` to your Android phone via USB/WhatsApp/Drive and tap to install.*
+
+### Step 4: Configure Backend Server in the App
+1. Open **Wearable Health AI** on your Android phone or emulator.
+2. Tap the **⚙️** icon in the top right app bar.
+3. Set the FastAPI Server URL:
+   - **For Android Emulator**: Tap the **Emulator** button (`http://10.0.2.2:5000/`).
+   - **For Physical Android Phone (Wi-Fi)**: Enter your computer's local IP (e.g., `http://192.168.1.15:5000/`).
+4. Tap **Save URL**.
+
+### Step 5: Test Patient Portal
+1. Select the **🏃 Normal User (Patient)** tab.
+2. Observe the 4 core parameters: **SpO2**, **Heart Beat**, **Steps**, and **Sleep**.
+3. Tap **⚡ Sync Watch to AI Engine**.
+4. The app sends the telemetry payload to the FastAPI backend and displays:
+   - AI Engine State (`🟢 Recovery`)
+   - Physiological Strain Index (`18.5 / 100`)
+   - Clinical Advisory Tier (`Nominal Tier 1`)
+   - AI Clinical Recommendations.
+
+### Step 6: Test Hospital / Doctor Portal
+1. Tap the **🏥 Hospital (Doctor)** tab at the top of the app.
+2. In the EHR lookup box, select or type Patient ID: `U0042` (or `U0001`).
+3. Tap **Fetch EHR**.
+4. The doctor can instantly view:
+   - Patient's past records in the database.
+   - The patient's 4 core vitals: SpO2, Heart Beat, Steps, and Sleep.
+5. In the **Clinical Consultation Form**, enter:
+   - Diagnosis: `Sinus rhythm stable, mild post-exercise fatigue`
+   - Clinical Notes: `Vitals review shows normal SpO2 and restorative sleep profile.`
+   - Treatment Plan: `Maintain hydration, electrolyte intake, follow up in 14 days.`
+6. Tap **💾 Save Consultation to EHR Database**.
+7. The note is permanently saved into the database and appears in the consultation timeline!
 
 ---
 
-## 🔍 How to Check System Status & Health
+## 🔍 Verification & Automated Status Diagnostics
 
-Run the automated diagnostic suite at any time:
-```bash
+Run the comprehensive health check script anytime:
+```powershell
 python check_status.py
 ```
 
-### Diagnostic Output Checks:
-1. **Dependency Verification**: Confirms all ML libraries, Streamlit, and FastAPI are installed.
-2. **Database Integrity**: Validates connection to SQLite/PostgreSQL, counts of health telemetry logs, registered users, and clinical notes.
-3. **Data & ML Models**: Confirms the 6-month continuous dataset and GMM/HMM clustering pipeline.
-4. **RBAC & Authentication**: Verifies login authentication for both Patient and Doctor accounts.
-5. **Backend Server Status**: Pings the live HTTP `/health` endpoint.
-6. **Frontend App Verification**: Confirms readiness of `app/main.py`.
-
-### Live API Status Endpoint:
-When the backend is running, check via browser or curl:
-```bash
-curl http://127.0.0.1:5000/health
+Run automated backend & RBAC unit tests:
+```powershell
+pytest tests/test_rbac_and_hospital.py
 ```
-Response:
-```json
-{
-  "status": "healthy",
-  "database": "connected",
-  "total_health_logs": 184,
-  "total_users": 2,
-  "total_clinical_notes": 3,
-  "timestamp": "2026-10-08T00:11:51.000000Z"
-}
-```
-
----
-
-## 👥 Demo Authentication Credentials
-
-| Role | Username | Password | Full Name / Description |
-| :--- | :--- | :--- | :--- |
-| **Patient / User** | `patient` | `health2026` | Alex Mercer (Patient ID: `U0042`) |
-| **Hospital / Doctor** | `doctor` | `clinical2026` | Dr. Elena Vance, MD (Cardiology & Autonomic Medicine) |
-
-*You can also switch roles with 1 click using the **🔄 Switch Role** button at the top of the app bar!*
-
----
-
-## 🌐 Production Deployment Options
-
-### Option A: Docker Deployment (Recommended)
-Create a `docker-compose.yml`:
-```yaml
-version: '3.8'
-services:
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile.backend
-    ports:
-      - "5000:5000"
-    environment:
-      - DATABASE_URL=sqlite:///./health_database.db
-
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    ports:
-      - "8501:8501"
-    depends_on:
-      - backend
-```
-
-### Option B: Streamlit Community Cloud
-1. Push repository to GitHub.
-2. Log in to [Streamlit Cloud](https://share.streamlit.io).
-3. Connect your repository: `Prajwalrameshr/wearable-health-ai`.
-4. Main file path: `app/main.py`.
-5. Deploy with 1 click!
-
-### Option C: Cloud VPS (AWS / GCP / DigitalOcean)
-Use `systemd` or `supervisord` to manage both services:
-- Backend: `uvicorn main:app --host 0.0.0.0 --port 5000 --app-dir backend`
-- Frontend: `streamlit run app/main.py --server.port 8501 --server.address 0.0.0.0`
-
----
-
-## 🧪 Automated Testing
-Run the complete test suite to ensure 100% test pass rate:
-```bash
-pytest tests/test_rbac_and_hospital.py tests/test_models.py tests/test_risk_scoring.py
-```
-All unit tests validate RBAC logins, doctor patient history lookup, consultation note persistence, and ML models.
+*(All 17 tests validate authentication, patient data querying, doctor note creation, and schema integrity).*
